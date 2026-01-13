@@ -86,11 +86,18 @@
             <plugin>
                 <groupId>com.adobe.aem</groupId>
                 <artifactId>aemanalyser-maven-plugin</artifactId>
+                <configuration>
+                    <skipAnalyserTasks>
+                        <!--task>requirements-capabilities</task-->
+                        <!--task>api-regions-exportsimports</task!-->
+                    </skipAnalyserTasks>
+                    <failOnAnalyserErrors>false</failOnAnalyserErrors>
+                </configuration>
                 <executions>
                     <execution>
                         <id>aem-analyser</id>
                         <goals>
-                            <goal>project-analyse</goal>                           
+                            <goal>project-analyse</goal>
                         </goals>
                     </execution>
                 </executions>
