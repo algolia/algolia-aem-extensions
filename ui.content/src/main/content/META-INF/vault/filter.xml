@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<workspaceFilter version="1.0">
+    <filter root="/conf/algolia-extensions" mode="merge"/>
+    <filter root="/content/algolia-extensions" mode="merge"/>
+    <filter root="/content/dam/algolia-extensions" mode="merge">
+        <exclude pattern="/content/dam/algolia-extensions(/.*)?"/>
+        <include pattern="/content/dam/algolia-extensions/jcr:content(/.*)?"/>
+    </filter>
+    <filter root="/content/dam/algolia-extensions/asset.jpg" mode="merge"/>
+    <filter root="/content/experience-fragments/algolia-extensions" mode="merge"/>
+</workspaceFilter>
