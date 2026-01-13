@@ -99,8 +99,6 @@ coverage/
 reports/
 
 # Others
-dispatcher/src/conf.d/variables/default.vars
-
 .DS_Store
 ui.apps/src/main/content/jcr_root/apps/algolia/clientlibs/clientlib-site
 ui.apps/src/main/content/jcr_root/apps/algolia/clientlibs/clientlib-hooksInitialization

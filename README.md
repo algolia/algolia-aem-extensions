@@ -26,10 +26,7 @@ The main parts of the project are:
 * [core:](core/README.md) Java bundle containing extension implementations, OSGi services, listeners, schedulers, and component-related Java code
 * [it.tests:](it.tests/README.md) Java based integration tests
 * [ui.apps:](ui.apps/README.md) contains the /apps (and /etc) parts of the project, including JS&CSS clientlibs, components, and templates
-* [ui.content:](ui.content/README.md) contains sample content using the components from the ui.apps
-* ui.config: contains runmode specific OSGi configs for the project
 * [ui.frontend:](ui.frontend.general/README.md) an optional dedicated front-end build mechanism (Angular, React or general Webpack project)
-* [ui.tests:](ui.tests/README.md) Cypress based UI tests (for other frameworks check [aem-test-samples](https://github.com/adobe/aem-test-samples) repository
 * all: a single content package that embeds all of the compiled modules (bundles and content packages) including any vendor dependencies
 * analyse: this module runs analysis on the project which provides additional validation for deploying into AEMaaCS
 
@@ -79,7 +76,7 @@ The build process also generates documentation in the form of README.md files in
 
 ## Testing
 
-There are three levels of testing contained in the project:
+There are two levels of testing contained in the project:
 
 ### Unit tests
 
@@ -127,14 +124,6 @@ run when executing
 
 from the project root directory. Additional information about this analysis and how to further configure it
 can be found here https://github.com/adobe/aemanalyser-maven-plugin
-
-### UI tests
-
-They will test the UI layer of your AEM application using Cypress framework.
-
-Check README file in `ui.tests` module for more details.
-
-Examples of UI tests in different frameworks can be found here: https://github.com/adobe/aem-test-samples
 
 ## ClientLibs
 
