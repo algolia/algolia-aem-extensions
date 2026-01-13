@@ -1,6 +1,6 @@
 # Algolia AEM Extensions
 
-This project provides guidance on building extensions for the Algolia AEM Connector. The project includes two indexing extensions that can be used as reference implementations and starting points for developing custom extensions.
+This project provides reference implementations of extensions for the Algolia AEM Connector. The project includes two indexing extensions that demonstrate how to customize and enhance the indexing behavior of the connector.
 
 ## Disclaimer
 
@@ -12,10 +12,18 @@ This project demonstrates how to build custom extensions for the Algolia AEM Con
 
 ## Indexing Extensions
 
-The project provides two indexing extensions:
+The project provides two reference implementations:
 
-1. **Page Request Extender** - Extends the indexing behavior for AEM pages
-2. **Asset Request Extender** - Extends the indexing behavior for AEM assets
+1. **DefaultAlgoliaPdfTextExtractor** - An asset request extender that extracts text from PDF assets and adds it to Algolia records. This extension:
+   - Extracts text from PDF assets using the `PdfTextExtractor` service
+   - Handles large PDFs by splitting text into multiple attributes when word count exceeds the configured limit
+   - Splits records when the total size exceeds 10KB to comply with Algolia record size limits
+   - Configurable word size limit (default: 900 words)
+
+2. **DefaultAlgoliaTagsExtractor** - A dual-purpose extender that extracts tags from both pages and assets. This extension:
+   - Implements both `AlgoliaPageRequestExtender` and `AlgoliaAssetRequestExtender` interfaces
+   - Extracts tags from the `cq:tags` JCR property
+   - Uses the `TagsParserService` to parse and add tags to Algolia records
 
 These extensions serve as reference implementations and can be customized to add additional fields, modify existing data, or implement custom indexing logic.
 
@@ -23,15 +31,9 @@ These extensions serve as reference implementations and can be customized to add
 
 The main parts of the project are:
 
-* [core:](core/README.md) Java bundle containing extension implementations, OSGi services, listeners, schedulers, and component-related Java code
-* [it.tests:](it.tests/README.md) Java based integration tests
-* [ui.apps:](ui.apps/README.md) contains the /apps (and /etc) parts of the project, including JS&CSS clientlibs, components, and templates
-* [ui.content:](ui.content/README.md) contains sample content using the components from the ui.apps
-* ui.config: contains runmode specific OSGi configs for the project
-* [ui.frontend:](ui.frontend.general/README.md) an optional dedicated front-end build mechanism (Angular, React or general Webpack project)
-* [ui.tests:](ui.tests/README.md) Cypress based UI tests (for other frameworks check [aem-test-samples](https://github.com/adobe/aem-test-samples) repository
-* all: a single content package that embeds all of the compiled modules (bundles and content packages) including any vendor dependencies
-* analyse: this module runs analysis on the project which provides additional validation for deploying into AEMaaCS
+* **core**: Java bundle containing extension implementations and OSGi services
+* **it.tests**: Java based integration tests
+* **all**: A single content package that embeds all of the compiled modules (bundles and content packages) including any vendor dependencies
 
 ## Building Custom Extensions
 
@@ -40,12 +42,17 @@ To create your own extensions for the Algolia AEM Connector:
 1. Implement the appropriate extender interface:
    - `AlgoliaPageRequestExtender` for page indexing extensions
    - `AlgoliaAssetRequestExtender` for asset indexing extensions
+   - Both interfaces if your extension should handle both pages and assets (like `DefaultAlgoliaTagsExtractor`)
 
-2. Register your implementation as an OSGi service component
+2. Register your implementation as an OSGi service component using `@Component` annotation
 
-3. Your extension will be automatically invoked during the indexing process
+3. Optionally annotate with `@ComponentServiceProperties` to provide a human-readable description that will appear in the Algolia cloud config dropdown
 
-Refer to the example implementations in the `core` module for guidance on building custom extensions.
+4. Your extension will be automatically invoked during the indexing process
+
+Refer to the example implementations in the `core` module:
+- `DefaultAlgoliaPdfTextExtractor` - Example of an asset extender with configuration
+- `DefaultAlgoliaTagsExtractor` - Example of a dual-purpose extender for both pages and assets
 
 ## How to build
 
@@ -69,17 +76,20 @@ Or to deploy only the bundle to the author, run
 
     mvn clean install -PautoInstallBundle
 
-Or to deploy only a single content package, run in the sub-module directory (i.e `ui.apps`)
+Or to deploy only a single content package, run in the sub-module directory (i.e `all`)
 
     mvn clean install -PautoInstallPackage
 
-## Documentation
+## Dependencies
 
-The build process also generates documentation in the form of README.md files in each module directory for easy reference. Depending on the options you select at build time, the content may be customized to your project.
+This project depends on:
+- `algolia-aem-indexer.core` (version 4.1.2) - The core Algolia AEM Connector library
+- `opennlp-tools` (version 2.5.0) - Used for text tokenization in PDF text extraction
+- AEM SDK API - For AEM-specific functionality
 
 ## Testing
 
-There are three levels of testing contained in the project:
+There are two levels of testing contained in the project:
 
 ### Unit tests
 
@@ -118,35 +128,6 @@ recommended [best
 practices](https://github.com/adobe/aem-testing-clients/wiki/Best-practices) to
 be put in use when writing integration tests for AEM.
 
-## Static Analysis
-
-The `analyse` module performs static analysis on the project for deploying into AEMaaCS. It is automatically
-run when executing
-
-    mvn clean install
-
-from the project root directory. Additional information about this analysis and how to further configure it
-can be found here https://github.com/adobe/aemanalyser-maven-plugin
-
-### UI tests
-
-They will test the UI layer of your AEM application using Cypress framework.
-
-Check README file in `ui.tests` module for more details.
-
-Examples of UI tests in different frameworks can be found here: https://github.com/adobe/aem-test-samples
-
-## ClientLibs
-
-The frontend module is made available using an [AEM ClientLib](https://helpx.adobe.com/experience-manager/6-5/sites/developing/using/clientlibs.html). When executing the NPM build script, the app is built and the [`aem-clientlib-generator`](https://github.com/wcm-io-frontend/aem-clientlib-generator) package takes the resulting build output and transforms it into such a ClientLib.
-
-A ClientLib will consist of the following files and directories:
-
-- `css/`: CSS files which can be requested in the HTML
-- `css.txt` (tells AEM the order and names of files in `css/` so they can be merged)
-- `js/`: JavaScript files which can be requested in the HTML
-- `js.txt` (tells AEM the order and names of files in `js/` so they can be merged
-- `resources/`: Source maps, non-entrypoint code chunks (resulting from code splitting), static assets (e.g. icons), etc.
 
 ## Maven settings
 
