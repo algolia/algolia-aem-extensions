@@ -88,8 +88,7 @@
                 <artifactId>aemanalyser-maven-plugin</artifactId>
                 <configuration>
                     <skipAnalyserTasks>
-                        <!--task>requirements-capabilities</task-->
-                        <!--task>api-regions-exportsimports</task!-->
+                        <task>api-regions-exportsimports</task>
                     </skipAnalyserTasks>
                     <failOnAnalyserErrors>false</failOnAnalyserErrors>
                 </configuration>

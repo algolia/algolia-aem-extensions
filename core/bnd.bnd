@@ -1,0 +1,15 @@
+-metatypeannotations: *
+
+-dsannotations: *
+
+-includeresource: pdfbox-*.jar;lib:=true
+
+Import-Package: *
+
+-snapshot: SNAPSHOT
+
+Bundle-Name: ${project.name}
+
+Bundle-Category: Search Extensions
+
+Bundle-Vendor: Algolia
