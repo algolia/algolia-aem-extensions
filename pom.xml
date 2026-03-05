@@ -30,7 +30,7 @@
         <bnd.version>7.2.1</bnd.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <aem.sdk.api>2026.2.24464.20260214T050318Z-260100</aem.sdk.api>
+        <aem.sdk.api>2026.2.24678.20260226T154829Z-260200</aem.sdk.api>
         <aemanalyser.version>1.6.16</aemanalyser.version>
         <jacoco.version>0.8.14</jacoco.version>
         <junit.version>6.0.3</junit.version>
