@@ -2,7 +2,7 @@
 
 -dsannotations: *
 
--includeresource: pdfbox-*.jar;lib:=true
+-includeresource: fontbox-*.jar;pdfbox-*.jar;lib:=true
 
 Import-Package: *
 
