@@ -25,16 +25,18 @@
         <vault.password>admin</vault.password>
         <slf4j.version>1.7.36</slf4j.version>
         <sightly.runtime.version>1.2.6-1.4.0</sightly.runtime.version>
-        <frontend-maven-plugin.version>2.0.0</frontend-maven-plugin.version>
         <core.wcm.components.version>2.28.0</core.wcm.components.version>
-        <bnd.version>7.2.1</bnd.version>
+        <frontend-maven-plugin.version>2.0.0</frontend-maven-plugin.version>
+        <node.version>v24.14.1</node.version>
+        <npm.version>11.11.1</npm.version>
+        <bnd.version>7.2.2</bnd.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <aem.sdk.api>2026.2.24678.20260226T154829Z-260200</aem.sdk.api>
+        <aem.sdk.api>2026.3.24893.20260312T165332Z-260200</aem.sdk.api>
         <aemanalyser.version>1.6.16</aemanalyser.version>
         <jacoco.version>0.8.14</jacoco.version>
         <junit.version>6.0.3</junit.version>
-        <mockito.version>5.22.0</mockito.version>
+        <mockito.version>5.23.0</mockito.version>
         <componentGroupName>Algolia AEM Extensions</componentGroupName>
     </properties>
     <build>
@@ -107,8 +109,8 @@
                     <artifactId>frontend-maven-plugin</artifactId>
                     <version>${frontend-maven-plugin.version}</version>
                     <configuration>
-                        <nodeVersion>v24.14.0</nodeVersion>
-                        <npmVersion>11.11.0</npmVersion>
+                        <nodeVersion>${node.version}</nodeVersion>
+                        <npmVersion>${npm.version}</npmVersion>
                     </configuration>
                     <executions>
                         <execution>
@@ -184,7 +186,7 @@
                         <dependency>
                             <groupId>org.apache.sling</groupId>
                             <artifactId>scriptingbundle-maven-plugin</artifactId>
-                            <version>0.5.0</version>
+                            <version>0.5.2</version>
                         </dependency>
                     </dependencies>
                 </plugin>
@@ -276,7 +278,7 @@
                         <dependency>
                             <groupId>biz.netcentric.aem</groupId>
                             <artifactId>aem-nodetypes</artifactId>
-                            <version>6.5.7.0</version>
+                            <version>2023.10.0</version>
                         </dependency>
                     </dependencies>
                 </plugin>
