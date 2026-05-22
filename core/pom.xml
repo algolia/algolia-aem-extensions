@@ -13,7 +13,7 @@
     <description>Core bundle for Algolia AEM Extensions</description>
 
     <properties>
-        <pdfbox.version>3.0.6</pdfbox.version>
+        <pdfbox.version>3.0.7</pdfbox.version>
     </properties>
 
     <build>
