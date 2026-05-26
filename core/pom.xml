@@ -97,10 +97,10 @@ Import-Package: javax.annotation;version=0.0.0,*
         <dependency>
             <groupId>com.algolia</groupId>
             <artifactId>algolia-aem-indexer.core</artifactId>
-            <version>4.5.0-SNAPSHOT</version>
+            <version>4.7.0-SNAPSHOT</version>
             <type>jar</type>
             <scope>system</scope>
-            <systemPath>${basedir}/static-dependencies/algolia-aem-indexer.core-4.5.0-SNAPSHOT.jar</systemPath>
+            <systemPath>${basedir}/static-dependencies/algolia-aem-indexer.core-4.7.0-SNAPSHOT.jar</systemPath>
         </dependency>
 
         <!-- Apache PDF Box dependencies -->
