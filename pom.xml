@@ -29,14 +29,14 @@
         <slf4j.version>1.7.36</slf4j.version>
         <sightly.runtime.version>1.2.6-1.4.0</sightly.runtime.version>
         <core.wcm.components.version>2.28.0</core.wcm.components.version>
-        <frontend-maven-plugin.version>2.0.0</frontend-maven-plugin.version>
+        <frontend-maven-plugin.version>2.0.1</frontend-maven-plugin.version>
         <node.version>v24.17.0</node.version>
         <npm.version>11.17.0</npm.version>
         <bnd.version>7.3.0</bnd.version>
         <aem.sdk.api>2026.6.26635.20260611T122956Z-260500</aem.sdk.api>
         <aemanalyser.version>1.6.24</aemanalyser.version>
-        <maven-surefire-plugin.version>3.5.5</maven-surefire-plugin.version>
-        <maven-failsafe-plugin.version>3.5.5</maven-failsafe-plugin.version>
+        <maven-surefire-plugin.version>3.5.6</maven-surefire-plugin.version>
+        <maven-failsafe-plugin.version>3.5.6</maven-failsafe-plugin.version>
         <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
         <maven-jar-plugin.version>3.5.0</maven-jar-plugin.version>
         <jacoco.version>0.8.15</jacoco.version>
