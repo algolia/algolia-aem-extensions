@@ -30,16 +30,16 @@
         <sightly.runtime.version>1.2.6-1.4.0</sightly.runtime.version>
         <core.wcm.components.version>2.28.0</core.wcm.components.version>
         <frontend-maven-plugin.version>2.0.0</frontend-maven-plugin.version>
-        <node.version>v24.16.0</node.version>
-        <npm.version>11.15.0</npm.version>
-        <bnd.version>7.2.3</bnd.version>
-        <aem.sdk.api>2026.5.26125.20260516T172537Z-260400</aem.sdk.api>
-        <aemanalyser.version>1.6.18</aemanalyser.version>
+        <node.version>v24.17.0</node.version>
+        <npm.version>11.17.0</npm.version>
+        <bnd.version>7.3.0</bnd.version>
+        <aem.sdk.api>2026.6.26635.20260611T122956Z-260500</aem.sdk.api>
+        <aemanalyser.version>1.6.24</aemanalyser.version>
         <maven-surefire-plugin.version>3.5.5</maven-surefire-plugin.version>
         <maven-failsafe-plugin.version>3.5.5</maven-failsafe-plugin.version>
         <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
         <maven-jar-plugin.version>3.5.0</maven-jar-plugin.version>
-        <jacoco.version>0.8.14</jacoco.version>
+        <jacoco.version>0.8.15</jacoco.version>
         <junit.version>6.1.0</junit.version>
         <mockito.version>5.23.0</mockito.version>
         <componentGroupName>Algolia AEM Extensions</componentGroupName>
@@ -72,7 +72,7 @@
                         <configuration>
                             <rules>
                                 <requireMavenVersion>
-                                    <version>[3.3.9,)</version>
+                                    <version>[3.9.0,)</version>
                                 </requireMavenVersion>
                                 <requireJavaVersion>
                                     <message>Maven must be executed with a Java 21 JRE or higher.</message>
@@ -305,7 +305,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-dependency-plugin</artifactId>
-                    <version>3.10.0</version>
+                    <version>3.11.0</version>
                 </plugin>
                 <!-- Build Helper Maven Plugin -->
                 <plugin>
