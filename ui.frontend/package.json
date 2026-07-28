@@ -27,7 +27,7 @@
     "@typescript-eslint/eslint-plugin": "^5.7.0",
     "@typescript-eslint/parser": "^5.7.0",
     "acorn": "^6.1.0",
-    "aem-clientlib-generator": "^1.8.0",
+    "aem-clientlib-generator": "^2.0.3",
     "aemsync": "^4.0.1",
     "algoliasearch": "^5.8.1",
     "autoprefixer": "^9.2.1",
