@@ -43,7 +43,7 @@
     "glob-import-loader": "^1.2.0",
     "html-webpack-plugin": "^5.5.0",
     "instantsearch.js": "^4.75.7",
-    "jsdom": "^21.0.0",
+    "jsdom": "^28.1.0",
     "mini-css-extract-plugin": "^2.4.5",
     "postcss": "^8.2.15",
     "postcss-loader": "^3.0.0",
