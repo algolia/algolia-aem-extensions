@@ -8,6 +8,7 @@ import com.algolia.connector.core.extender.AlgoliaAssetRequestExtender;
 import com.algolia.connector.core.util.AlgoliaUtil;
 import com.day.cq.dam.api.Asset;
 import opennlp.tools.tokenize.WhitespaceTokenizer;
+import org.apache.commons.lang3.Strings;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.sling.api.resource.ResourceResolverFactory;
 import org.osgi.service.component.annotations.Activate;
@@ -59,7 +60,7 @@ public class DefaultAlgoliaPdfTextExtractor implements AlgoliaAssetRequestExtend
 
     @Override
     public void augmentAlgoliaRequest(AlgoliaRequest request, Asset asset) {
-        if (StringUtils.equals(asset.getMimeType(), MIME_TYPE_PDF)) {
+        if (Strings.CS.equals(asset.getMimeType(), MIME_TYPE_PDF)) {
             LOGGER.info("Encountered PDF asset, extracting text from it.");
             String text = this.extractor.extractText(asset);
             if (StringUtils.isNotEmpty(text)) {
@@ -76,7 +77,7 @@ public class DefaultAlgoliaPdfTextExtractor implements AlgoliaAssetRequestExtend
                         int index = 0;
                         for (Map.Entry<String, Object> entry : originalRecord.entrySet()) {
                             String key = entry.getKey();
-                            if (StringUtils.startsWith(key, ATTRIBUTE_PDF_TEXT)) {
+                            if (Strings.CS.startsWith(key, ATTRIBUTE_PDF_TEXT)) {
                                 String parentObjectID = originalRecord.getObjectID();
                                 AlgoliaRecord algoliaRecord = new AlgoliaRecord(parentObjectID + "_" + index);
                                 algoliaRecord.addAttribute(ATTRIBUTE_PDF_TEXT, entry.getValue());
