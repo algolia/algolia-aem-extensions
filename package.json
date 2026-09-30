@@ -1,0 +1,9 @@
+{
+    "name": "algolia-aem-extensions-docs",
+    "version": "1.0.0",
+    "private": true,
+    "description": "Documentation build for the Algolia AEM Extensions package.",
+    "scripts": {
+        "docs:pdf": "node scripts/docs-pdf/build.js"
+    }
+}

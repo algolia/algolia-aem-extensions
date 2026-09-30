@@ -14,45 +14,39 @@ This project demonstrates how to build custom extensions for the Algolia AEM Con
 
 The project provides two reference implementations:
 
-1. **DefaultAlgoliaPdfTextExtractor** - An asset request extender that extracts text from PDF assets and adds it to Algolia records. This extension:
-   - Extracts text from PDF assets using the `PdfTextExtractor` service
-   - Handles large PDFs by splitting text into multiple attributes when word count exceeds the configured limit
-   - Splits records when the total size exceeds 10KB to comply with Algolia record size limits
-   - Configurable word size limit (default: 900 words)
+1. **DefaultAlgoliaPdfTextExtractor** — asset request extender that extracts PDF text onto Algolia records, partitions it by word count, and splits records when the text exceeds 10 KB. See [PDF Text Extractor](docs/PDF_TEXT.md).
+2. **DefaultAlgoliaTagsExtractor** — page and asset extender that adds `cq:tags` through the indexer’s `TagsParserService`. See [Tags Extractor](docs/TAGS.md).
 
-2. **DefaultAlgoliaTagsExtractor** - A dual-purpose extender that extracts tags from both pages and assets. This extension:
-   - Implements both `AlgoliaPageRequestExtender` and `AlgoliaAssetRequestExtender` interfaces
-   - Extracts tags from the `cq:tags` JCR property
-   - Uses the `TagsParserService` to parse and add tags to Algolia records
-
-These extensions serve as reference implementations and can be customized to add additional fields, modify existing data, or implement custom indexing logic.
+Use them as starting points for your own extenders. See [Building custom extensions](docs/CUSTOM_EXTENSIONS.md).
 
 ## Modules
 
 The main parts of the project are:
 
 * **core**: Java bundle containing extension implementations and OSGi services
-* **it.tests**: Java based integration tests
-* **all**: A single content package that embeds all of the compiled modules (bundles and content packages) including any vendor dependencies
+* **it.tests**: Java based integration tests (not part of the Maven reactor)
+* **all**: A single content package that embeds the core bundle
 
-## Building Custom Extensions
+## Documentation
 
-To create your own extensions for the Algolia AEM Connector:
+Guides for this package live in [`docs/`](docs/):
 
-1. Implement the appropriate extender interface:
-   - `AlgoliaPageRequestExtender` for page indexing extensions
-   - `AlgoliaAssetRequestExtender` for asset indexing extensions
-   - Both interfaces if your extension should handle both pages and assets (like `DefaultAlgoliaTagsExtractor`)
+| Guide | Topics |
+|-------|--------|
+| [Installation](docs/INSTALLATION.md) | Prerequisites, Maven build, deploy profiles, selecting extenders, tests |
+| [PDF Text Extractor](docs/PDF_TEXT.md) | `pdfText` attributes, word-size limit, 10 KB record splitting |
+| [Tags Extractor](docs/TAGS.md) | `cq:tags` on pages and assets |
+| [Custom extensions](docs/CUSTOM_EXTENSIONS.md) | Extender interfaces, OSGi registration, Cloud Service selection |
 
-2. Register your implementation as an OSGi service component using `@Component` annotation
+Build a branded PDF (requires [pandoc](https://pandoc.org/), Node.js, and Google Chrome):
 
-3. Optionally annotate with `@ComponentServiceProperties` to provide a human-readable description that will appear in the Algolia cloud config dropdown
+```bash
+mvn -N exec:exec@docs-pdf
+```
 
-4. Your extension will be automatically invoked during the indexing process
+`npm run docs:pdf` runs the same script.
 
-Refer to the example implementations in the `core` module:
-- `DefaultAlgoliaPdfTextExtractor` - Example of an asset extender with configuration
-- `DefaultAlgoliaTagsExtractor` - Example of a dual-purpose extender for both pages and assets
+The file is written to `docs/pdf/Algolia-AEM-Extensions-Documentation-v1.0.0.pdf`.
 
 ## How to build
 

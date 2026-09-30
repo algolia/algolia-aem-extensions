@@ -96,6 +96,27 @@
           <release>11</release>
         </configuration>
       </plugin>
+      <!-- Documentation PDF: mvn -N exec:exec@docs-pdf -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <inherited>false</inherited>
+        <executions>
+          <execution>
+            <id>docs-pdf</id>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <executable>node</executable>
+              <arguments>
+                <argument>scripts/docs-pdf/build.js</argument>
+              </arguments>
+              <workingDirectory>${project.basedir}</workingDirectory>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
     <pluginManagement>
       <plugins>
@@ -304,6 +325,11 @@ Bundle-DocURL:
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-enforcer-plugin</artifactId>
           <version>3.0.0</version>
+        </plugin>
+        <plugin>
+          <groupId>org.codehaus.mojo</groupId>
+          <artifactId>exec-maven-plugin</artifactId>
+          <version>3.5.1</version>
         </plugin>
         <!-- Maven Dependency Plugin -->
         <plugin>
