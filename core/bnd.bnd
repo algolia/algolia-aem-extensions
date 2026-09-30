@@ -1,0 +1,17 @@
+-metatypeannotations: *
+
+-dsannotations: *
+
+-includeresource: fontbox-*.jar;pdfbox-*.jar;lib:=true
+
+Import-Package: org.apache.commons.logging;version='[1.2,2)', \
+                !sun.misc.*, \
+                *
+
+-snapshot: SNAPSHOT
+
+Bundle-Name: ${project.name}
+
+Bundle-Category: Search Extensions
+
+Bundle-Vendor: Algolia
