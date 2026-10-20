@@ -87,7 +87,7 @@ class DefaultAlgoliaTagsExtractorLlmTest {
 
         this.extractor.augmentAlgoliaRequest(this.request, this.asset);
 
-        verify(this.llmEnricher, never()).enrich(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(this.llmEnricher, never()).enrich(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -101,7 +101,7 @@ class DefaultAlgoliaTagsExtractorLlmTest {
 
         this.extractor.augmentAlgoliaRequest(this.request, this.asset);
 
-        verify(this.llmEnricher, never()).enrich(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(this.llmEnricher, never()).enrich(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -115,7 +115,7 @@ class DefaultAlgoliaTagsExtractorLlmTest {
 
         this.extractor.augmentAlgoliaRequest(this.request, this.asset);
 
-        verify(this.llmEnricher, never()).enrich(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(this.llmEnricher, never()).enrich(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -133,7 +133,7 @@ class DefaultAlgoliaTagsExtractorLlmTest {
         when(this.cryptoSupport.unprotect(anyString())).thenThrow(new CryptoException("bad"));
 
         assertDoesNotThrow(() -> this.extractor.augmentAlgoliaRequest(this.request, this.asset));
-        verify(this.llmEnricher, never()).enrich(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(this.llmEnricher, never()).enrich(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -150,7 +150,7 @@ class DefaultAlgoliaTagsExtractorLlmTest {
 
         this.extractor.augmentAlgoliaRequest(this.request, this.asset);
 
-        verify(this.llmEnricher, never()).enrich(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(this.llmEnricher, never()).enrich(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     // -------------------------------------------------------------------------
@@ -180,7 +180,9 @@ class DefaultAlgoliaTagsExtractorLlmTest {
                 eq("plain-key"),
                 anyString(),
                 anyString(),
-                anyString());
+                anyString(),
+                any(),
+                any());
     }
 
     @Test
@@ -206,7 +208,9 @@ class DefaultAlgoliaTagsExtractorLlmTest {
                 eq("plain-key"),
                 anyString(),
                 anyString(),
-                anyString());
+                anyString(),
+                any(),
+                any());
     }
 
     @Test
@@ -234,7 +238,9 @@ class DefaultAlgoliaTagsExtractorLlmTest {
                 eq("sk-real"),
                 anyString(),
                 anyString(),
-                anyString());
+                anyString(),
+                any(),
+                any());
     }
 
     @Test
@@ -255,7 +261,7 @@ class DefaultAlgoliaTagsExtractorLlmTest {
         }).when(this.tagsParserService).parse(any(), any(), anyString());
         doThrow(new IOException("timeout")).when(this.llmEnricher)
                 .enrich(any(), anyString(), anyString(), anyString(), anyString(),
-                        anyString(), anyString(), anyString(), anyString());
+                        anyString(), anyString(), anyString(), anyString(), any(), any());
 
         assertDoesNotThrow(() -> this.extractor.augmentAlgoliaRequest(this.request, this.asset));
         assertEquals(List.of("News"), this.algoliaRecord.get("topic"));
@@ -399,5 +405,125 @@ class DefaultAlgoliaTagsExtractorLlmTest {
                 null, null, record, List.of("jcr:description", "missing"), resource);
 
         assertEquals("jcr:description: Welcome packet perks", content);
+    }
+
+    // -------------------------------------------------------------------------
+    // Config field declarations
+    // -------------------------------------------------------------------------
+
+    @Test
+    void llmOutputFieldsIsDeclaredWithCorrectDefault() {
+        ExtenderConfigField field = this.extractor.getConfigFields().stream()
+                .filter(f -> "llmOutputFields".equals(f.getName()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("llmOutputFields not declared"));
+        assertEquals("Output Fields", field.getLabel());
+        assertEquals(LlmEnricher.DEFAULT_OUTPUT_FIELDS, field.getDefaultValue());
+        assertTrue(field.isAuthorOnly());
+    }
+
+    @Test
+    void llmAttributeStemIsDeclaredWithDefaultTag() {
+        ExtenderConfigField field = this.extractor.getConfigFields().stream()
+                .filter(f -> "llmAttributeStem".equals(f.getName()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("llmAttributeStem not declared"));
+        assertEquals("Attribute Stem", field.getLabel());
+        assertEquals("tag", field.getDefaultValue());
+        assertTrue(field.isAuthorOnly());
+    }
+
+    @Test
+    void llmExcludedPropertiesIsDeclaredWithDefaultPdfText() {
+        ExtenderConfigField field = this.extractor.getConfigFields().stream()
+                .filter(f -> "llmExcludedProperties".equals(f.getName()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("llmExcludedProperties not declared"));
+        assertEquals("Excluded Content Properties", field.getLabel());
+        assertEquals("pdfText", field.getDefaultValue());
+        assertTrue(field.isAuthorOnly());
+    }
+
+    // -------------------------------------------------------------------------
+    // buildContent exclusion tests
+    // -------------------------------------------------------------------------
+
+    @Test
+    void buildContentExcludesPdfTextByDefault() {
+        AlgoliaRecord record = new AlgoliaRecord("/content/wknd/us/en");
+        record.addAttribute("pdfText", "Full body text that should be excluded.");
+        record.addAttribute("pdfSummary", "Short summary.");
+
+        String content = DefaultAlgoliaTagsExtractor.buildContent("Title", null, record);
+
+        assertFalse(content.contains("pdfText"));
+        assertTrue(content.contains("pdfSummary"));
+    }
+
+    @Test
+    void buildContentExcludesNumberedPartitions() {
+        AlgoliaRecord record = new AlgoliaRecord("/content/wknd/us/en");
+        record.addAttribute("pdfText1", "Chunk 1");
+        record.addAttribute("pdfText2", "Chunk 2");
+        record.addAttribute("pdfSummary", "Summary");
+
+        String content = DefaultAlgoliaTagsExtractor.buildContent("Title", null, record);
+
+        assertFalse(content.contains("pdfText1"));
+        assertFalse(content.contains("pdfText2"));
+        assertTrue(content.contains("pdfSummary"));
+    }
+
+    @Test
+    void buildContentWithCustomExclusionOmitsNamedAttribute() {
+        AlgoliaRecord record = new AlgoliaRecord("/content/wknd/us/en");
+        record.addAttribute("pdfText", "Body text.");
+        record.addAttribute("rawHtml", "Raw markup.");
+        record.addAttribute("pdfSummary", "Summary.");
+
+        java.util.Set<String> excluded = java.util.Set.of("pdfText", "rawHtml");
+        String content = DefaultAlgoliaTagsExtractor.buildContent("Title", null, record, List.of(), null, excluded);
+
+        assertFalse(content.contains("pdfText"));
+        assertFalse(content.contains("rawHtml"));
+        assertTrue(content.contains("pdfSummary"));
+    }
+
+    @Test
+    void enrichWithLlmPassesSettingsDrivenExclusionToContent() throws Exception {
+        // Set llmExcludedProperties = "pdfText,rawHtml" via settings, verify rawHtml is excluded
+        ChatCompletionsClient client = mock(ChatCompletionsClient.class);
+        when(client.chat(anyString(), anyString(), anyString(), anyList()))
+                .thenReturn("{\"classification\":\"article\"}");
+        DefaultAlgoliaTagsExtractor realExtractor = new DefaultAlgoliaTagsExtractor(
+                this.tagsParserService, this.cryptoSupport, null, LlmEnricher.forTags(client, 8000));
+
+        AlgoliaConfiguration realConfig = mock(AlgoliaConfiguration.class);
+        lenient().when(realConfig.llmProviders()).thenReturn("");
+        AlgoliaRequest realRequest = new AlgoliaRequest("/content/page", realConfig);
+        AlgoliaRecord record = new AlgoliaRecord("/content/page");
+        record.addAttribute("rawHtml", "A lot of markup that should be excluded.");
+        record.addAttribute("pdfSummary", "Short summary that should be included.");
+        realRequest.addRecord(record);
+        realRequest.setExtenderSettings(new ExtenderSettings(Map.of(
+                "enableLlmEnrichment", "true",
+                "inferenceUrl", "https://api.openai.com/v1",
+                "model", "gpt-4o-mini",
+                "inferenceApiKey", "plain-key",
+                "llmExcludedProperties", "pdfText,rawHtml"
+        ), List.of()));
+        when(this.asset.getPath()).thenReturn("/content/page");
+        when(this.asset.getMetadataValue("dc:title")).thenReturn("Page Title");
+        when(this.cryptoSupport.isProtected("plain-key")).thenReturn(false);
+
+        realExtractor.augmentAlgoliaRequest(realRequest, this.asset);
+
+        // Verify the user message sent to the LLM did NOT contain rawHtml content
+        org.mockito.ArgumentCaptor<List<ChatCompletionsClient.Message>> messages =
+                org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(client).chat(anyString(), anyString(), anyString(), messages.capture());
+        String userMessage = messages.getValue().get(1).getContent();
+        assertFalse(userMessage.contains("markup"), "rawHtml content should have been excluded");
+        assertTrue(userMessage.contains("Short summary"), "pdfSummary should be included");
     }
 }

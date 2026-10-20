@@ -108,7 +108,11 @@ After extracting text the extender can optionally call an OpenAI-compatible Chat
 
 ### How it works
 
-The full extracted text is sent to the endpoint as a chat message (after truncation to the admin's configured limit). The model must return a JSON object. The extender parses that object and writes the following attributes onto **every record** — the original record and every split record when record splitting replaced it:
+The full extracted text is sent to the endpoint as a chat message (after truncation to the admin's configured limit). The model must return a JSON object. The extender parses that object and writes the configured output fields onto **every record** — the original record and every split record when record splitting replaced it.
+
+The set of fields and their types are configured via **Output Fields** (see settings table below). Each field becomes an attribute named `{prefix}{stem}{CapitalisedKey}`, where `{prefix}` is **Attribute Prefix** and `{stem}` is **Attribute Stem** (default `pdf`). An attribute is never written over one already on the record.
+
+**Default output schema** (when Output Fields is left blank):
 
 | Attribute | Type | Description |
 |---|---|---|
@@ -116,10 +120,10 @@ The full extracted text is sent to the endpoint as a chat message (after truncat
 | `{prefix}pdfSummary` | String | One-paragraph summary |
 | `{prefix}pdfTopics` | String array | Main topics (up to 20, de-duplicated) |
 | `{prefix}pdfKeywords` | String array | Search keywords (up to 20, de-duplicated) |
-| `{prefix}pdfLanguage` | String | ISO 639-1 language code |
+| `{prefix}pdfLanguage` | String (ISO 639-1 code) | Language of the PDF |
 | `{prefix}pdfDocumentType` | String | Sub-type of the document (policy, guide, report, …) |
 
-Classification, summary, topics, keywords, and document type are written in the language of the PDF. A Spanish document produces Spanish topics and a Spanish summary; `pdfLanguage` stays a code such as `es`. `{prefix}` is the **Attribute Prefix** from the same Extension Settings row. An attribute is never written over one already on the record (for example `objectID` or `path`).
+Text fields (and the summary) are written in the language of the PDF. A Spanish document produces Spanish topics and a Spanish summary; `pdfLanguage` stays a code such as `es`.
 
 Enrichment is **fail-open**: if the HTTP call fails, if the model returns invalid JSON, or if the API key cannot be decrypted, only the `pdfText` attributes are indexed and the error is logged at warning level. Image-only PDFs that produce no text are skipped entirely.
 
@@ -133,8 +137,10 @@ All LLM fields are marked **author-only**: AI Setup will not propose, change, or
 |---|---|---|---|
 | Enable LLM Enrichment | checkbox | off | Must be on for any enrichment to happen. Existing installs are unaffected. |
 | LLM Provider | dropdown | — | A provider from the **Algolia › LLM Providers** page. The provider holds the Inference URL, Model, and encrypted API key, so the Tags Extractor can use the same one. |
-| System Prompt | textarea | Built-in JSON prompt, shown as the placeholder | Instructs the model to return JSON only, with classification, summary, topics, keywords, and document type written in the language of the document. Override to change the tone or add domain context. A custom prompt replaces this instruction, so keep the language rule if you still want enrichment in the source language. |
-| User Prompt | textarea | `Analyze the following document text:\n\n{{pdfText}}` | Use `{{pdfText}}` as a placeholder for the truncated text. If the placeholder is absent, the text is appended. |
+| Output Fields | text | `classification:text, summary:longtext, topics:list, keywords:list, language:lang, documentType:text` | Comma-separated `key[:type]` entries describing the JSON keys the model must return. Valid types: `text` (string, max 256 chars), `longtext` (string, max 2 000 chars), `list` (string array, max 20, de-duplicated), `lang` (ISO 639-1 code). Unknown types default to `text`. At most 20 fields; duplicates and reserved keys (`objectID`, `path`, `type`) are dropped. Leave blank to use the defaults above. |
+| Attribute Stem | text | `pdf` | String inserted between the Attribute Prefix and the capitalised field key. Default `pdf` produces `pdfClassification`, `pdfSummary`, etc. Set it to `doc` to get `docClassification`. Clear it to write the key directly (`classification`). Only letters, digits, and underscores are accepted; an invalid value falls back to `pdf`. |
+| System Prompt | textarea | Built-in JSON prompt, shown as the placeholder | Instructs the model to return JSON only with the configured fields written in the language of the document. Use `{{fields}}` anywhere in this prompt or in the User Prompt and it will be replaced with a description of the configured Output Fields. If neither prompt contains `{{fields}}`, a compact field instruction is appended to this prompt automatically so older custom prompts still receive the correct schema. Override to change the tone or add domain context. |
+| User Prompt | textarea | `Analyze the following document text:\n\n{{pdfText}}` | Use `{{pdfText}}` as a placeholder for the truncated text. Use `{{fields}}` for the field description. If `{{pdfText}}` is absent, the text is appended. |
 
 **LLM providers** are managed on the **Advanced** tab of the Cloud Configuration with **Add provider**. Each provider has a **Name**, **Inference URL**, **Model**, and **API Key**; the key is encrypted when the provider dialog is saved. **Test connection** in the dialog checks the provider against every LLM-capable extension before you save. A provider that this configuration does not define (for example one inherited from a parent configuration) is shown as not found and enrichment is skipped.
 
@@ -169,14 +175,15 @@ These limits apply to all indexes on the AEM instance and are set by an administ
 
 On upgrade from extensions **1.0.x**, a configuration that already selected this class keeps producing the same `pdfText` attributes. Settings JSON is empty, so every field uses the default in the table above.
 
-| 1.0.x behavior | 1.1.0 default | 1.2.0 change |
-|---|---|---|
-| Attribute name always `pdfText` | **Attribute Name** defaults to `pdfText` | — |
-| No attribute prefix | **Attribute Prefix** defaults to empty | — |
-| Oversized text always split into extra records | **Split Oversized Text** defaults to on | — |
-| Word limit from OSGi `word.size.limit` (900) | Blank **Word Size Limit** still reads that OSGi value | — |
-| No LLM enrichment | — | **Enable LLM Enrichment** defaults to off; existing records are unchanged |
-| Inline Inference URL / Model / API Key fields | Inline LLM credential fields in 1.1.0 | **1.2.0** replaces them with a shared **LLM Provider** drop-down. Saved inline credentials still work and move into a provider the next time the configuration is opened and saved. |
+| 1.0.x behavior | 1.1.0 default | 1.2.0 change | Current default |
+|---|---|---|---|
+| Attribute name always `pdfText` | **Attribute Name** defaults to `pdfText` | — | — |
+| No attribute prefix | **Attribute Prefix** defaults to empty | — | — |
+| Oversized text always split into extra records | **Split Oversized Text** defaults to on | — | — |
+| Word limit from OSGi `word.size.limit` (900) | Blank **Word Size Limit** still reads that OSGi value | — | — |
+| No LLM enrichment | — | **Enable LLM Enrichment** defaults to off; existing records are unchanged | — |
+| Inline Inference URL / Model / API Key fields | Inline LLM credential fields in 1.1.0 | **1.2.0** replaces them with a shared **LLM Provider** drop-down. Saved inline credentials still work and move into a provider the next time the configuration is opened and saved. | — |
+| Hardcoded output schema (`pdfClassification`, `pdfSummary`, …) | Hardcoded in 1.2.0 | **Current** adds **Output Fields** (configurable `key:type` spec) and **Attribute Stem** (default `pdf`). Leaving both blank reproduces the old hardcoded attributes exactly. |
 
 Turning **Split Oversized Text** off is new. Existing indexes are unchanged until an author unchecks it and reindexes.
 

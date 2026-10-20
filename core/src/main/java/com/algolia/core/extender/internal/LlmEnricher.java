@@ -20,6 +20,8 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -35,28 +37,25 @@ import java.util.regex.Pattern;
  * one extension: {@link #forPdf} writes {@code pdf*} attributes, {@link #forTags} writes
  * {@code tag*} attributes.
  *
- * <h2>Fixed output schema</h2>
- * The model is expected to return a JSON object with these keys:
- * <ul>
- *   <li>{@code classification} – String: broad category of the document</li>
- *   <li>{@code summary} – String: one-paragraph summary</li>
- *   <li>{@code topics} – String[]: up to 20 main topics</li>
- *   <li>{@code keywords} – String[]: up to 20 search keywords</li>
- *   <li>{@code language} – String: ISO 639-1 language code</li>
- *   <li>{@code documentType} – String: document sub-type (policy, guide, report, …)</li>
- * </ul>
- * Each key is written as the attribute stem plus the capitalized key, for example
+ * <h2>Configurable output schema</h2>
+ * The set of JSON keys the model must return, and their types, are configured via the
+ * {@code llmOutputFields} Extension Setting as a comma-separated list of {@code key[:type]}
+ * entries. The default schema is:
+ * {@code classification:text, summary:longtext, topics:list, keywords:list, language:lang, documentType:text}.
+ * Each key is written as the attribute stem plus the capitalised key, for example
  * {@code pdfClassification} or {@code tagDocumentType}, after the author's attribute prefix.
+ * The stem itself is configurable via {@code llmAttributeStem} (defaults: {@code pdf} / {@code tag}).
  *
  * <h2>Prompts</h2>
  * System and user prompts come from the per-index Extension Settings. Defaults instruct the
- * model to output JSON only, and to write classification, summary, topics, keywords, and
- * document type in the dominant language of the main text, ignoring field labels and tag names.
- * The {@code language} value stays an ISO 639-1 code. For {@link #forTags}, the language is
- * fixed before the call from the record (see {@link #chooseLanguage}) and that rule is appended
- * to the system prompt, including a custom one. The placeholder ({@code {{pdfText}}} or {@code {{content}}}) in the
- * user prompt is replaced with the (truncated) text. If the placeholder is absent, the text is
- * appended.
+ * model to output JSON only. The placeholder {@code {{fields}}} in either prompt is replaced
+ * with a description of the configured fields. When neither prompt contains {@code {{fields}}},
+ * a fields instruction is appended to the system prompt so older custom prompts still receive
+ * the configured schema. The content placeholders ({@code {{pdfText}}} or {@code {{content}}})
+ * in the user prompt are replaced with the (truncated) text. If absent, the text is appended.
+ *
+ * <p>For {@link #forTags}, the output language is fixed before the call from the record (see
+ * {@link #chooseLanguage}) and appended to the system prompt.
  *
  * <h2>Error handling</h2>
  * Any exception thrown by this class is caught by the extender, logged as a warning, and
@@ -70,48 +69,88 @@ final class LlmEnricher implements Closeable {
 
     static final String PDF_PLACEHOLDER = "{{pdfText}}";
     static final String TAGS_PLACEHOLDER = "{{content}}";
+    /** Placeholder in prompts replaced with the description of the configured output fields. */
+    static final String FIELDS_PLACEHOLDER = "{{fields}}";
 
     private static final int MAX_ARRAY_SIZE = 20;
 
     /** Maximum character length for a single LLM-generated string attribute. */
     private static final int MAX_STRING_LENGTH = 256;
 
-    /** Maximum character length for the {@code summary} attribute (longer prose field). */
+    /** Maximum character length for the {@code longtext} type attribute (longer prose field). */
     private static final int MAX_SUMMARY_LENGTH = 2000;
+
+    /** Maximum number of output fields an author may configure. */
+    private static final int MAX_OUTPUT_FIELDS = 20;
 
     /** ISO 639 language code with optional BCP 47 subtags, such as {@code en}, {@code fil} or {@code en-US}. */
     private static final Pattern LANGUAGE_PATTERN = Pattern.compile("^[a-zA-Z]{2,3}([_-][a-zA-Z0-9]{2,8})*$");
 
+    /** Valid identifier pattern for output field keys. */
+    private static final Pattern FIELD_KEY_PATTERN = Pattern.compile("[A-Za-z][A-Za-z0-9_]*");
+
+    /** Reserved Algolia attribute names that must not be used as field keys. */
+    private static final Set<String> RESERVED_KEYS = Set.of("objectid", "path", "type");
+
+    /**
+     * Default output-field spec. Comma-separated {@code key:type} entries. Used as the
+     * default value for the {@code llmOutputFields} Extension Setting.
+     */
+    static final String DEFAULT_OUTPUT_FIELDS =
+            "classification:text, summary:longtext, topics:list, keywords:list, language:lang, documentType:text";
+
     static final String DEFAULT_SYSTEM_PROMPT =
             "You are a content analyst. When given document text, return ONLY a valid JSON object "
-                    + "(no prose, no markdown fences) with exactly these keys: "
-                    + "\"classification\" (string), "
-                    + "\"summary\" (string, one paragraph), "
-                    + "\"topics\" (array of strings, at most 20), "
-                    + "\"keywords\" (array of strings, at most 20), "
-                    + "\"language\" (ISO 639-1 language code string), "
-                    + "\"documentType\" (string). "
+                    + "(no prose, no markdown fences) with exactly these keys: " + FIELDS_PLACEHOLDER + ". "
                     + "Determine the dominant language of the main text (title, description, and body), "
                     + "ignoring field labels, attribute names, tag names, and these instructions. "
-                    + "Write classification, summary, topics, keywords, and documentType in that language. "
+                    + "Write the text fields in that language. "
                     + "Do not translate them into English or any other language. "
-                    + "Set language to the ISO 639-1 code of that language, not a language name. "
+                    + "Set any language-code field to the ISO 639-1 code of that language, not a language name. "
                     + "Use null for any field you cannot determine.";
 
     static final String PDF_USER_PROMPT = "Analyze the following document text:\n\n" + PDF_PLACEHOLDER;
     static final String TAGS_USER_PROMPT = "Analyze the following content:\n\n" + TAGS_PLACEHOLDER;
 
+    // ─── Field type ───────────────────────────────────────────────────────────
+
+    /** Typing for a configured output field. */
+    enum FieldType {
+        /** Trimmed string, max {@value #MAX_STRING_LENGTH} chars. */
+        TEXT,
+        /** Trimmed string, max {@value #MAX_SUMMARY_LENGTH} chars. */
+        LONGTEXT,
+        /** String array, max {@value #MAX_ARRAY_SIZE} de-duplicated entries. */
+        LIST,
+        /** ISO 639-1 language code; prose strings are rejected. */
+        LANG
+    }
+
+    /** One configured output field with its key and storage type. */
+    static final class OutputField {
+        final String key;
+        final FieldType type;
+
+        OutputField(String key, FieldType type) {
+            this.key = key;
+            this.type = type;
+        }
+    }
+
+    // ─── Instance state ───────────────────────────────────────────────────────
+
     private final ChatCompletionsClient client;
     private final int maxInputChars;
-    private final String attributeStem;
+    /** Default attribute stem for this enricher instance, e.g. {@code "pdf"} or {@code "tag"}. */
+    private final String defaultStem;
     private final String placeholder;
     private final String defaultUserPrompt;
 
     private LlmEnricher(ChatCompletionsClient client, int maxInputChars,
-                        String attributeStem, String placeholder, String defaultUserPrompt) {
+                        String defaultStem, String placeholder, String defaultUserPrompt) {
         this.client = client;
         this.maxInputChars = Math.max(500, maxInputChars);
-        this.attributeStem = attributeStem;
+        this.defaultStem = defaultStem;
         this.placeholder = placeholder;
         this.defaultUserPrompt = defaultUserPrompt;
     }
@@ -124,12 +163,15 @@ final class LlmEnricher implements Closeable {
         return new LlmEnricher(client, maxInputChars, "tag", TAGS_PLACEHOLDER, TAGS_USER_PROMPT);
     }
 
+    // ─── Public enrichment entry point ────────────────────────────────────────
+
     /**
-     * Resolves the LLM provider and API key for the request, then calls {@link #enrich}. Fails open: when
-     * enrichment is disabled or anything goes wrong, it logs and returns so indexing continues.
+     * Resolves the LLM provider and API key for the request, then calls {@link #enrich}. Fails
+     * open: when enrichment is disabled or anything goes wrong, it logs and returns so indexing
+     * continues.
      *
      * @param store   the shared provider registry; checked before the per-configuration JSON
-     * @param content supplies the text to analyze; only called once a provider is resolved
+     * @param content supplies the text to analyse; only called once a provider is resolved
      */
     void enrichIfEnabled(AlgoliaRequest request, String path, ExtenderSettings settings, String prefix,
                          CryptoSupport cryptoSupport, LlmProviderStore store, Supplier<String> content) {
@@ -161,9 +203,11 @@ final class LlmEnricher implements Closeable {
             LOGGER.warn("LLM enrichment skipped for {}: could not decrypt the API key.", path);
             return;
         }
+        List<OutputField> fields = parseOutputFields(settings.getString("llmOutputFields", ""));
+        String stem = resolveStem(settings);
         try {
-            this.enrich(request, path, text, provider.get().getInferenceUrl(), provider.get().getModel(), apiKey,
-                    settings.getString("systemPrompt"), settings.getString("userPrompt"), prefix);
+            enrich(request, path, text, provider.get().getInferenceUrl(), provider.get().getModel(), apiKey,
+                    settings.getString("systemPrompt"), settings.getString("userPrompt"), prefix, stem, fields);
         } catch (Exception e) {
             LOGGER.warn("LLM enrichment failed for {}, indexing continues without enrichment attributes: {}",
                     path, ChatCompletionsClient.sanitize(e.getMessage(), apiKey, 300));
@@ -171,30 +215,82 @@ final class LlmEnricher implements Closeable {
     }
 
     /**
-     * Calls the LLM and applies the enrichment attributes to every record on the request.
+     * Calls the LLM with explicit stem and output fields, then writes the results to all records.
+     * This is the primary overload called by {@link #enrichIfEnabled} and testable by unit tests.
      *
      * @param request      the current indexing request (all records are updated)
      * @param path         used only for logging
-     * @param text         the text to analyze (truncated internally before sending)
+     * @param text         the text to analyse (truncated internally before sending)
      * @param inferenceUrl the endpoint URL
      * @param model        the model identifier
      * @param apiKey       the Bearer token (already decrypted)
      * @param systemPrompt the system-role message (blank falls back to the default)
      * @param userPrompt   the user-role message with an optional placeholder
      * @param prefix       the attribute prefix from the author's Extension Settings
+     * @param stem         the attribute stem (e.g. {@code "pdf"} or {@code "tag"})
+     * @param fields       the configured output fields
+     * @throws IOException if the HTTP call fails or the response cannot be parsed
+     */
+    void enrich(AlgoliaRequest request, String path, String text,
+                String inferenceUrl, String model, String apiKey,
+                String systemPrompt, String userPrompt, String prefix,
+                String stem, List<OutputField> fields) throws IOException {
+        enrichInternal(request, path, text, inferenceUrl, model, apiKey, systemPrompt, userPrompt, prefix,
+                stem, fields);
+    }
+
+    /**
+     * Convenience overload using the instance's default stem and the default output fields.
+     * Kept for backward compatibility with unit tests.
+     *
      * @throws IOException if the HTTP call fails or the response cannot be parsed
      */
     void enrich(AlgoliaRequest request, String path, String text,
                 String inferenceUrl, String model, String apiKey,
                 String systemPrompt, String userPrompt, String prefix) throws IOException {
+        enrich(request, path, text, inferenceUrl, model, apiKey, systemPrompt, userPrompt, prefix,
+                this.defaultStem, parseOutputFields(""));
+    }
+
+    // ─── Internal full enrichment ─────────────────────────────────────────────
+
+    private void enrichInternal(AlgoliaRequest request, String path, String text,
+                                String inferenceUrl, String model, String apiKey,
+                                String systemPrompt, String userPrompt, String prefix,
+                                String stem, List<OutputField> fields) throws IOException {
         String truncated = truncate(text);
+        String fieldsDescription = describeFields(fields);
+
         String system = StringUtils.isNotBlank(systemPrompt) ? systemPrompt.trim() : DEFAULT_SYSTEM_PROMPT;
+
+        // Determine whether this is a Tags enricher (needs language pre-selection)
+        boolean isTags = "tag".equals(this.defaultStem);
+        String langKey = findLangKey(fields);
         String outputLanguage = null;
-        if ("tag".equals(this.attributeStem)) {
-            outputLanguage = chooseLanguage(request).code;
-            system = system + "\n\n" + languageDirective(outputLanguage);
+        if (isTags && langKey != null) {
+            Set<String> ownAttrNorms = buildOwnAttrNorms(stem, fields);
+            outputLanguage = chooseLanguage(request, ownAttrNorms).code;
         }
-        String user = buildUserMessage(userPrompt, truncated);
+
+        // Track whether {{fields}} appears BEFORE replacement
+        boolean systemHasFields = system.contains(FIELDS_PLACEHOLDER);
+        boolean userHasFields = StringUtils.isNotBlank(userPrompt) && userPrompt.contains(FIELDS_PLACEHOLDER);
+
+        // Replace {{fields}} in the system prompt
+        system = system.replace(FIELDS_PLACEHOLDER, fieldsDescription);
+
+        // Append language directive for Tags (includes the chosen language)
+        if (outputLanguage != null) {
+            system = system + "\n\n" + languageDirective(outputLanguage, langKey);
+        }
+
+        // If neither prompt carried {{fields}}, append a compact fields instruction so custom
+        // prompts saved before this feature was added still receive the configured schema
+        if (!systemHasFields && !userHasFields) {
+            system = system + "\n\n" + fieldsDirective(fieldsDescription);
+        }
+
+        String user = buildUserMessage(userPrompt, truncated, fieldsDescription);
 
         long start = System.currentTimeMillis();
         List<ChatCompletionsClient.Message> messages = List.of(
@@ -210,17 +306,19 @@ final class LlmEnricher implements Closeable {
         long elapsed = System.currentTimeMillis() - start;
         LOGGER.info("LLM enrichment for {} completed in {} ms (model: {}).", path, elapsed, model);
 
-        EnrichmentResult result = parse(reply);
-        if (outputLanguage != null) {
-            result.language = outputLanguage;
+        Map<String, Object> parsed = parseFields(reply, fields);
+
+        // Override the language field for Tags so the model's detected language is ignored
+        if (outputLanguage != null && langKey != null) {
+            parsed.put(langKey, outputLanguage);
         }
-        String namePrefix = prefix + this.attributeStem;
-        applyToAllRecords(request, result, namePrefix);
-        LOGGER.debug("LLM enrichment for {} wrote {}* attributes: classification={}, summary={}, topics={}, "
-                        + "keywords={}, language={}, documentType={}.", path, namePrefix,
-                result.classification != null, result.summary != null, result.topics.size(),
-                result.keywords.size(), result.language, result.documentType != null);
+
+        applyFieldsToAllRecords(request, parsed, prefix, stem, fields);
+        LOGGER.debug("LLM enrichment for {} wrote attributes with prefix='{}', stem='{}', fieldCount={}.",
+                path, prefix, stem, fields.size());
     }
+
+    // ─── Connection probe ─────────────────────────────────────────────────────
 
     /**
      * Sends a short completion to confirm the endpoint, model, and API key work with this
@@ -237,6 +335,8 @@ final class LlmEnricher implements Closeable {
         }
     }
 
+    // ─── Prompt helpers ───────────────────────────────────────────────────────
+
     private String truncate(String text) {
         if (text == null) {
             return "";
@@ -244,17 +344,251 @@ final class LlmEnricher implements Closeable {
         return text.length() <= this.maxInputChars ? text : text.substring(0, this.maxInputChars);
     }
 
+    /**
+     * Builds the user message. Replaces {@code {{fields}}} first (when fieldsDescription is
+     * provided), then the content placeholder. If the content placeholder is absent, the text
+     * is appended.
+     */
     String buildUserMessage(String userPrompt, String text) {
-        if (StringUtils.isBlank(userPrompt)) {
-            return this.defaultUserPrompt.replace(this.placeholder, text);
-        }
-        if (userPrompt.contains(this.placeholder)) {
-            return userPrompt.replace(this.placeholder, text);
-        }
-        // Placeholder missing: append
-        return userPrompt.trim() + "\n\n" + text;
+        return buildUserMessage(userPrompt, text, null);
     }
 
+    String buildUserMessage(String userPrompt, String text, String fieldsDescription) {
+        String effective = StringUtils.isBlank(userPrompt) ? this.defaultUserPrompt : userPrompt;
+        if (fieldsDescription != null && effective.contains(FIELDS_PLACEHOLDER)) {
+            effective = effective.replace(FIELDS_PLACEHOLDER, fieldsDescription);
+        }
+        if (effective.contains(this.placeholder)) {
+            return effective.replace(this.placeholder, text);
+        }
+        // Placeholder missing: append
+        return effective.trim() + "\n\n" + text;
+    }
+
+    // ─── Output field spec parsing ────────────────────────────────────────────
+
+    /**
+     * Parses a comma-separated {@code key[:type]} spec into an ordered list of output fields.
+     *
+     * <p>Rules:
+     * <ul>
+     *   <li>Key must match {@code [A-Za-z][A-Za-z0-9_]*}; invalid keys are dropped.</li>
+     *   <li>Reserved keys ({@code objectid}, {@code path}, {@code type}) are rejected.</li>
+     *   <li>Duplicate keys (case-insensitive) are de-duplicated.</li>
+     *   <li>Unknown type names default to {@link FieldType#TEXT}.</li>
+     *   <li>At most {@value #MAX_OUTPUT_FIELDS} fields; extras are dropped.</li>
+     *   <li>Blank or fully-invalid specs fall back to the default six fields.</li>
+     * </ul>
+     */
+    static List<OutputField> parseOutputFields(String spec) {
+        if (StringUtils.isBlank(spec)) {
+            return parseRaw(DEFAULT_OUTPUT_FIELDS);
+        }
+        List<OutputField> result = parseRaw(spec);
+        return result.isEmpty() ? parseRaw(DEFAULT_OUTPUT_FIELDS) : result;
+    }
+
+    private static List<OutputField> parseRaw(String spec) {
+        List<OutputField> result = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (String entry : spec.split(",")) {
+            String trimmed = entry.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            int colon = trimmed.indexOf(':');
+            String key;
+            FieldType type;
+            if (colon > 0) {
+                key = trimmed.substring(0, colon).trim();
+                String typeName = trimmed.substring(colon + 1).trim().toUpperCase(Locale.ROOT);
+                type = parseFieldType(typeName);
+            } else {
+                key = trimmed;
+                type = FieldType.TEXT;
+            }
+            if (!FIELD_KEY_PATTERN.matcher(key).matches()) {
+                continue;
+            }
+            if (RESERVED_KEYS.contains(key.toLowerCase(Locale.ROOT))) {
+                continue;
+            }
+            if (!seen.add(key.toLowerCase(Locale.ROOT))) {
+                continue;
+            }
+            result.add(new OutputField(key, type));
+            if (result.size() >= MAX_OUTPUT_FIELDS) {
+                break;
+            }
+        }
+        return result;
+    }
+
+    private static FieldType parseFieldType(String typeName) {
+        switch (typeName) {
+            case "LONGTEXT": return FieldType.LONGTEXT;
+            case "LIST":     return FieldType.LIST;
+            case "LANG":     return FieldType.LANG;
+            default:         return FieldType.TEXT;
+        }
+    }
+
+    /**
+     * Builds a human-readable description of the configured fields for use in prompts, e.g.
+     * {@code "classification" (string), "summary" (string, one paragraph)}.
+     */
+    static String describeFields(List<OutputField> fields) {
+        StringBuilder sb = new StringBuilder();
+        for (OutputField f : fields) {
+            if (sb.length() > 0) {
+                sb.append(", ");
+            }
+            sb.append('"').append(f.key).append('"');
+            switch (f.type) {
+                case LONGTEXT: sb.append(" (string, one paragraph)"); break;
+                case LIST:     sb.append(" (array of strings, at most 20)"); break;
+                case LANG:     sb.append(" (ISO 639-1 language code string)"); break;
+                default:       sb.append(" (string)"); break;
+            }
+        }
+        return sb.toString();
+    }
+
+    /** Short instruction appended when neither prompt contains {@link #FIELDS_PLACEHOLDER}. */
+    private static String fieldsDirective(String fieldsDescription) {
+        return "Return a JSON object with exactly these keys: " + fieldsDescription
+                + ". Use null for any field you cannot determine.";
+    }
+
+    // ─── Stem resolution ──────────────────────────────────────────────────────
+
+    /**
+     * Resolves the attribute stem from settings.
+     *
+     * <p>When the author has not saved a value, the field default (typically {@code pdf} or
+     * {@code tag}) applies. When the author clears the field, the stem is empty and attributes
+     * are written as {@code prefix + key} without a stem segment. Invalid characters log a
+     * warning and fall back to this instance's default stem.
+     */
+    String resolveStem(ExtenderSettings settings) {
+        if (settings.hasValue("llmAttributeStem")) {
+            String raw = settings.getString("llmAttributeStem").trim();
+            if (raw.isEmpty()) {
+                return "";
+            }
+            return validatedStem(raw);
+        }
+        String raw = settings.getString("llmAttributeStem", this.defaultStem).trim();
+        if (raw.isEmpty()) {
+            return this.defaultStem;
+        }
+        return validatedStem(raw);
+    }
+
+    private String validatedStem(String raw) {
+        if (!raw.matches("[A-Za-z0-9_]*")) {
+            LOGGER.warn("Ignoring attribute stem '{}' because it contains unsupported characters; "
+                    + "using default '{}'.", raw, this.defaultStem);
+            return this.defaultStem;
+        }
+        return raw;
+    }
+
+    // ─── Field-driven parsing and writing ─────────────────────────────────────
+
+    /**
+     * Parses the model's JSON reply and extracts values for the configured fields.
+     * Values are coerced to the declared type; fields absent or of the wrong type yield no entry.
+     */
+    static Map<String, Object> parseFields(String reply, List<OutputField> fields) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        JsonNode root;
+        try {
+            root = ChatCompletionsClient.parseJson(reply);
+        } catch (Exception e) {
+            LOGGER.warn("LLM enrichment: could not parse model reply as JSON — skipping attributes.");
+            return result;
+        }
+        for (OutputField field : fields) {
+            Object value = extractValue(root.path(field.key), field.type);
+            if (value != null) {
+                result.put(field.key, value);
+            }
+        }
+        return result;
+    }
+
+    private static Object extractValue(JsonNode node, FieldType type) {
+        switch (type) {
+            case LONGTEXT: return stringOrNull(node, MAX_SUMMARY_LENGTH);
+            case LIST: {
+                List<String> list = stringListOrEmpty(node);
+                return list.isEmpty() ? null : list;
+            }
+            case LANG: return validLanguageOrNull(stringOrNull(node, MAX_STRING_LENGTH));
+            default:   return stringOrNull(node, MAX_STRING_LENGTH);
+        }
+    }
+
+    private static void applyFieldsToAllRecords(AlgoliaRequest request, Map<String, Object> parsed,
+                                                String prefix, String stem, List<OutputField> fields) {
+        for (AlgoliaRecord record : recordsToUpdate(request)) {
+            for (OutputField field : fields) {
+                String attrName = buildAttrName(prefix, stem, field.key);
+                Object value = parsed.get(field.key);
+                if (value instanceof String) {
+                    putIfAbsent(record, attrName, (String) value);
+                } else if (value instanceof List) {
+                    @SuppressWarnings("unchecked")
+                    List<String> list = (List<String>) value;
+                    putListIfAbsent(record, attrName, list);
+                }
+            }
+        }
+    }
+
+    private static String buildAttrName(String prefix, String stem, String key) {
+        if (stem.isEmpty()) {
+            return prefix + key;
+        }
+        return prefix + stem + capitalize(key);
+    }
+
+    private static String capitalize(String key) {
+        if (key == null || key.isEmpty()) {
+            return key;
+        }
+        return Character.toUpperCase(key.charAt(0)) + key.substring(1);
+    }
+
+    private static String findLangKey(List<OutputField> fields) {
+        for (OutputField f : fields) {
+            if (f.type == FieldType.LANG) {
+                return f.key;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Builds the set of normalised attribute names (lowercase, no prefix) that this enricher
+     * writes, used to skip its own output from language detection.
+     */
+    static Set<String> buildOwnAttrNorms(String stem, List<OutputField> fields) {
+        Set<String> norms = new HashSet<>();
+        for (OutputField f : fields) {
+            String attrName = stem.isEmpty() ? f.key : stem + capitalize(f.key);
+            norms.add(attrName.toLowerCase(Locale.ROOT));
+        }
+        return norms;
+    }
+
+    // ─── Backward-compatible legacy parse ─────────────────────────────────────
+
+    /**
+     * Parses the model's JSON reply using the default six-field schema.
+     * Kept for backward compatibility with unit tests.
+     */
     static EnrichmentResult parse(String reply) {
         EnrichmentResult result = new EnrichmentResult();
         JsonNode root;
@@ -317,6 +651,8 @@ final class LlmEnricher implements Closeable {
         return result;
     }
 
+    // ─── Records helper ───────────────────────────────────────────────────────
+
     /**
      * Returns the records on the request plus any record an earlier extender removed from it
      * but bulk indexing still saves (the original of a split PDF).
@@ -327,16 +663,7 @@ final class LlmEnricher implements Closeable {
         return records;
     }
 
-    private static void applyToAllRecords(AlgoliaRequest request, EnrichmentResult result, String namePrefix) {
-        for (AlgoliaRecord record : recordsToUpdate(request)) {
-            putIfAbsent(record, namePrefix + "Classification", result.classification);
-            putIfAbsent(record, namePrefix + "Summary", result.summary);
-            putListIfAbsent(record, namePrefix + "Topics", result.topics);
-            putListIfAbsent(record, namePrefix + "Keywords", result.keywords);
-            putIfAbsent(record, namePrefix + "Language", result.language);
-            putIfAbsent(record, namePrefix + "DocumentType", result.documentType);
-        }
-    }
+    // ─── Language selection (Tags) ────────────────────────────────────────────
 
     /**
      * Language for tag enrichment, in this order: an authored language attribute on the record
@@ -344,8 +671,30 @@ final class LlmEnricher implements Closeable {
      * attribute an earlier extender wrote, then the language of text already on the record.
      * This extension's own {@code tag*} fields are ignored. Returns English when none of those
      * identifies a language.
+     *
+     * <p>This no-argument overload uses the default tag attribute names for the skip list.
      */
     static LanguageChoice chooseLanguage(AlgoliaRequest request) {
+        // Default tag enricher attribute names (default stem "tag", default fields)
+        Set<String> ownNorms = Set.of(
+                "tagclassification", "tagsummary", "tagtopics", "tagkeywords",
+                "taglanguage", "tagdocumenttype");
+        return chooseLanguage(request, ownNorms);
+    }
+
+    /**
+     * Parameterised variant used when the stem or output fields are customised.
+     *
+     * @param ownAttrNorms normalised attribute names (stem + key, lowercase, no prefix) that
+     *                     belong to this enricher instance and must be excluded from sampling
+     */
+    static LanguageChoice chooseLanguage(AlgoliaRequest request, Set<String> ownAttrNorms) {
+        // Extract the normalised language attribute name owned by this enricher (ends in "language")
+        String ownLangAttrNorm = ownAttrNorms.stream()
+                .filter(n -> n.endsWith("language"))
+                .findFirst()
+                .orElse(null);
+
         String pdfLanguage = null;
         String otherLanguage = null;
         String named = null;
@@ -356,7 +705,8 @@ final class LlmEnricher implements Closeable {
                     continue;
                 }
                 String normalized = key.toLowerCase(Locale.ROOT).replace(':', '_');
-                if (normalized.endsWith("taglanguage")) {
+                // Skip this enricher's own language attribute to avoid circular dependency
+                if (ownLangAttrNorm != null && normalized.endsWith(ownLangAttrNorm)) {
                     continue;
                 }
                 String code = validLanguageOrNull(textValue(entry.getValue()));
@@ -383,7 +733,7 @@ final class LlmEnricher implements Closeable {
         if (otherLanguage != null) {
             return new LanguageChoice(otherLanguage, "languageAttribute");
         }
-        String fromText = languageFromRecordText(request);
+        String fromText = languageFromRecordText(request, ownAttrNorms);
         if (fromText != null) {
             return new LanguageChoice(fromText, "recordText");
         }
@@ -393,12 +743,20 @@ final class LlmEnricher implements Closeable {
     /**
      * Reads text an earlier extender already put on the record and picks a language when
      * distinctive words repeat. Short titles and product names do not count.
+     * Uses the default tag attribute skip list.
      */
     private static String languageFromRecordText(AlgoliaRequest request) {
+        Set<String> ownNorms = Set.of(
+                "tagclassification", "tagsummary", "tagtopics", "tagkeywords",
+                "taglanguage", "tagdocumenttype");
+        return languageFromRecordText(request, ownNorms);
+    }
+
+    private static String languageFromRecordText(AlgoliaRequest request, Set<String> ownAttrNorms) {
         StringBuilder sample = new StringBuilder();
         for (AlgoliaRecord record : recordsToUpdate(request)) {
             for (Map.Entry<String, Object> entry : record.entrySet()) {
-                if (entry.getKey() == null || skipForLanguageSample(entry.getKey())) {
+                if (entry.getKey() == null || skipForLanguageSample(entry.getKey(), ownAttrNorms)) {
                     continue;
                 }
                 String text = flatten(entry.getValue());
@@ -417,14 +775,17 @@ final class LlmEnricher implements Closeable {
         return detectLanguage(sample.toString());
     }
 
-    private static boolean skipForLanguageSample(String key) {
+    private static boolean skipForLanguageSample(String key, Set<String> ownAttrNorms) {
         String normalized = key.toLowerCase(Locale.ROOT).replace(':', '_');
         if (normalized.equals("objectid") || normalized.equals("path") || normalized.equals("type")) {
             return true;
         }
-        return normalized.contains("tagclassification") || normalized.contains("tagsummary")
-                || normalized.contains("tagtopics") || normalized.contains("tagkeywords")
-                || normalized.contains("taglanguage") || normalized.contains("tagdocumenttype");
+        for (String own : ownAttrNorms) {
+            if (normalized.contains(own)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean isBodyText(String key) {
@@ -495,11 +856,11 @@ final class LlmEnricher implements Closeable {
         return bestCode;
     }
 
-    private static String languageDirective(String language) {
+    private static String languageDirective(String language, String langKey) {
         return "The language for this content is already set to \"" + language + "\". "
                 + "This replaces any earlier instruction to determine the language from the text. "
-                + "Write classification, summary, topics, keywords, and documentType in that language only. "
-                + "Set language to \"" + language + "\". "
+                + "Write the text fields in that language only. "
+                + "Set \"" + langKey + "\" to \"" + language + "\". "
                 + "Do not detect a different language and do not translate into any other language.";
     }
 
@@ -535,7 +896,10 @@ final class LlmEnricher implements Closeable {
         this.client.close();
     }
 
-    /** Parsed model output — all fields are nullable / may be empty. */
+    /**
+     * Parsed model output using the default six-field schema.
+     * Kept for backward compatibility with unit tests that call {@link #parse(String)}.
+     */
     static final class EnrichmentResult {
         String classification;
         String summary;

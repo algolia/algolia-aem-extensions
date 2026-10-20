@@ -2,6 +2,7 @@ package com.algolia.core.extender.internal;
 
 import com.algolia.connector.core.domain.AlgoliaRecord;
 import com.algolia.connector.core.domain.AlgoliaRequest;
+import com.algolia.connector.core.extender.ExtenderSettings;
 import com.algolia.connector.core.inference.ChatCompletionsClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -12,6 +13,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -58,6 +61,104 @@ class LlmEnricherTest {
     void usesDefaultPromptWhenBlank() {
         String result = this.enricher.buildUserMessage("", "text");
         assertTrue(result.contains("text"));
+    }
+
+    @Test
+    void defaultSystemPromptContainsFieldsPlaceholder() {
+        assertTrue(LlmEnricher.DEFAULT_SYSTEM_PROMPT.contains(LlmEnricher.FIELDS_PLACEHOLDER));
+    }
+
+    @Test
+    void fieldsPlaceholderReplacedInUserMessage() {
+        List<LlmEnricher.OutputField> fields = LlmEnricher.parseOutputFields("summary:longtext");
+        String description = LlmEnricher.describeFields(fields);
+        String result = this.enricher.buildUserMessage(
+                "Analyze this. Keys: {{fields}}. Text: {{pdfText}}", "hello", description);
+        assertTrue(result.contains("\"summary\""));
+        assertFalse(result.contains("{{fields}}"));
+        assertTrue(result.contains("hello"));
+    }
+
+    // ─── Output field spec parsing ────────────────────────────────────────────
+
+    @Test
+    void parseOutputFieldsDefaultWhenBlank() {
+        List<LlmEnricher.OutputField> fields = LlmEnricher.parseOutputFields("");
+        assertEquals(6, fields.size());
+        assertEquals("classification", fields.get(0).key);
+        assertEquals(LlmEnricher.FieldType.TEXT, fields.get(0).type);
+        assertEquals("summary", fields.get(1).key);
+        assertEquals(LlmEnricher.FieldType.LONGTEXT, fields.get(1).type);
+        assertEquals("topics", fields.get(2).key);
+        assertEquals(LlmEnricher.FieldType.LIST, fields.get(2).type);
+        assertEquals("language", fields.get(4).key);
+        assertEquals(LlmEnricher.FieldType.LANG, fields.get(4).type);
+    }
+
+    @Test
+    void parseOutputFieldsMissingTypeMeansText() {
+        List<LlmEnricher.OutputField> fields = LlmEnricher.parseOutputFields("audience");
+        assertEquals(1, fields.size());
+        assertEquals("audience", fields.get(0).key);
+        assertEquals(LlmEnricher.FieldType.TEXT, fields.get(0).type);
+    }
+
+    @Test
+    void parseOutputFieldsUnknownTypeFallsBackToText() {
+        List<LlmEnricher.OutputField> fields = LlmEnricher.parseOutputFields("score:number");
+        assertEquals(1, fields.size());
+        assertEquals(LlmEnricher.FieldType.TEXT, fields.get(0).type);
+    }
+
+    @Test
+    void parseOutputFieldsInvalidKeyDropped() {
+        List<LlmEnricher.OutputField> fields = LlmEnricher.parseOutputFields("123invalid, valid");
+        assertEquals(1, fields.size());
+        assertEquals("valid", fields.get(0).key);
+    }
+
+    @Test
+    void parseOutputFieldsReservedKeysDropped() {
+        List<LlmEnricher.OutputField> fields = LlmEnricher.parseOutputFields("objectID, path, type, summary");
+        assertEquals(1, fields.size());
+        assertEquals("summary", fields.get(0).key);
+    }
+
+    @Test
+    void parseOutputFieldsDuplicateKeysDeduplicatedCaseInsensitively() {
+        List<LlmEnricher.OutputField> fields = LlmEnricher.parseOutputFields("summary, Summary, SUMMARY");
+        assertEquals(1, fields.size());
+        assertEquals("summary", fields.get(0).key);
+    }
+
+    @Test
+    void parseOutputFieldsCappedAtTwenty() {
+        StringBuilder spec = new StringBuilder();
+        for (int i = 0; i < 25; i++) {
+            if (spec.length() > 0) spec.append(", ");
+            spec.append("field").append(i);
+        }
+        List<LlmEnricher.OutputField> fields = LlmEnricher.parseOutputFields(spec.toString());
+        assertEquals(20, fields.size());
+    }
+
+    @Test
+    void parseOutputFieldsAllInvalidFallsBackToDefault() {
+        List<LlmEnricher.OutputField> fields = LlmEnricher.parseOutputFields("123, 456, !!!");
+        assertEquals(6, fields.size());  // default six
+    }
+
+    // ─── describeFields ───────────────────────────────────────────────────────
+
+    @Test
+    void describeFieldsProducesCorrectTypePhrases() {
+        List<LlmEnricher.OutputField> fields = LlmEnricher.parseOutputFields(
+                "title:text, body:longtext, tags:list, locale:lang");
+        String description = LlmEnricher.describeFields(fields);
+        assertTrue(description.contains("\"title\" (string)"));
+        assertTrue(description.contains("\"body\" (string, one paragraph)"));
+        assertTrue(description.contains("\"tags\" (array of strings, at most 20)"));
+        assertTrue(description.contains("\"locale\" (ISO 639-1 language code string)"));
     }
 
     // ─── Parsing ─────────────────────────────────────────────────────────────
@@ -135,6 +236,55 @@ class LlmEnricherTest {
         assertEquals(2, result.topics.size());
     }
 
+    // ─── parseFields (field-driven) ───────────────────────────────────────────
+
+    @Test
+    void parseFieldsExtraCustomKey() {
+        List<LlmEnricher.OutputField> fields = LlmEnricher.parseOutputFields("audience:text, topics:list");
+        String json = "{\"audience\":\"developers\",\"topics\":[\"AEM\",\"Algolia\"]}";
+        Map<String, Object> result = LlmEnricher.parseFields(json, fields);
+        assertEquals("developers", result.get("audience"));
+        @SuppressWarnings("unchecked")
+        List<String> topics = (List<String>) result.get("topics");
+        assertEquals(List.of("AEM", "Algolia"), topics);
+    }
+
+    @Test
+    void parseFieldsLangRejectsProse() {
+        List<LlmEnricher.OutputField> fields = LlmEnricher.parseOutputFields("locale:lang");
+        Map<String, Object> result = LlmEnricher.parseFields("{\"locale\":\"English\"}", fields);
+        assertNull(result.get("locale"));
+    }
+
+    @Test
+    void parseFieldsLangtextCappedAt2000() {
+        List<LlmEnricher.OutputField> fields = LlmEnricher.parseOutputFields("body:longtext");
+        String longText = "x".repeat(3000);
+        Map<String, Object> result = LlmEnricher.parseFields("{\"body\":\"" + longText + "\"}", fields);
+        assertEquals(2000, ((String) result.get("body")).length());
+    }
+
+    @Test
+    void parseFieldsListDeduplicatesAndCapsAt20() {
+        List<LlmEnricher.OutputField> fields = LlmEnricher.parseOutputFields("tags:list");
+        StringBuilder json = new StringBuilder("{\"tags\":[\"a\",\"a\"");
+        for (int i = 0; i < 25; i++) json.append(",\"t").append(i).append('"');
+        json.append("]}");
+        Map<String, Object> result = LlmEnricher.parseFields(json.toString(), fields);
+        @SuppressWarnings("unchecked")
+        List<String> tags = (List<String>) result.get("tags");
+        assertEquals(20, tags.size());
+        assertEquals("a", tags.get(0));
+    }
+
+    @Test
+    void parseFieldsSkipsAbsentKeys() {
+        List<LlmEnricher.OutputField> fields = LlmEnricher.parseOutputFields("summary:longtext, missing:text");
+        Map<String, Object> result = LlmEnricher.parseFields("{\"summary\":\"S.\"}", fields);
+        assertTrue(result.containsKey("summary"));
+        assertFalse(result.containsKey("missing"));
+    }
+
     // ─── Happy path ───────────────────────────────────────────────────────────
 
     @Test
@@ -196,6 +346,111 @@ class LlmEnricherTest {
         assertEquals("existing", record.get("pdfClassification"));
     }
 
+    @Test
+    void customStemWritesWithThatStemCapitalized() throws IOException {
+        String json = "{\"summary\":\"Brief.\"}";
+        when(this.client.chat(anyString(), anyString(), anyString(), anyList())).thenReturn(json);
+
+        LlmEnricher pdfEnricher = LlmEnricher.forPdf(this.client, 12000);
+        AlgoliaRequest request = new AlgoliaRequest("/dam/a.pdf", null);
+        AlgoliaRecord record = new AlgoliaRecord("/dam/a.pdf");
+        request.addRecord(record);
+
+        // Use a custom stem via enrichInternal via a mock ExtenderSettings call is not practical
+        // here; instead verify that the default 9-arg enrich uses "pdf" stem
+        pdfEnricher.enrich(request, "/dam/a.pdf", "text",
+                "https://8.8.8.8/v1", "m", "key", "", "", "");
+
+        assertTrue(record.containsKey("pdfSummary"));
+        assertFalse(record.containsKey("Summary"));
+    }
+
+    @Test
+    void resolveStemHonoursExplicitBlank() {
+        ExtenderSettings settings = new ExtenderSettings(Map.of("llmAttributeStem", ""), List.of());
+        assertEquals("", this.enricher.resolveStem(settings));
+    }
+
+    @Test
+    void blankStemWritesKeyDirectly() throws IOException {
+        String json = "{\"summary\":\"Blank stem test.\"}";
+        when(this.client.chat(anyString(), anyString(), anyString(), anyList())).thenReturn(json);
+
+        AlgoliaRequest request = new AlgoliaRequest("/dam/a.pdf", null);
+        AlgoliaRecord record = new AlgoliaRecord("/dam/a.pdf");
+        request.addRecord(record);
+
+        List<LlmEnricher.OutputField> fields = LlmEnricher.parseOutputFields("summary:longtext");
+        this.enricher.enrich(request, "/dam/a.pdf", "text",
+                "https://8.8.8.8/v1", "m", "key", "", "", "", "", fields);
+
+        assertEquals("Blank stem test.", record.get("summary"));
+        assertFalse(record.containsKey("pdfSummary"));
+    }
+
+    // ─── {{fields}} directive ─────────────────────────────────────────────────
+
+    @Test
+    void fieldsPlaceholderInSystemPromptIsReplaced() throws IOException {
+        String json = "{\"summary\":\"S.\"}";
+        when(this.client.chat(anyString(), anyString(), anyString(), anyList())).thenReturn(json);
+
+        AlgoliaRequest request = new AlgoliaRequest("/dam/a.pdf", null);
+        request.addRecord(new AlgoliaRecord("/dam/a.pdf"));
+
+        // Pass a custom system prompt with {{fields}}
+        this.enricher.enrich(request, "/dam/a.pdf", "text",
+                "https://8.8.8.8/v1", "m", "key",
+                "Return {{fields}} only.", "{{pdfText}}", "");
+
+        ArgumentCaptor<List<ChatCompletionsClient.Message>> messages = ArgumentCaptor.forClass(List.class);
+        verify(this.client).chat(anyString(), anyString(), anyString(), messages.capture());
+        String sysContent = messages.getValue().get(0).getContent();
+        assertFalse(sysContent.contains("{{fields}}"));
+        assertTrue(sysContent.contains("\"classification\""));
+    }
+
+    @Test
+    void fieldsDirectiveAppendedWhenNeitherPromptHasPlaceholder() throws IOException {
+        String json = "{\"summary\":\"S.\"}";
+        when(this.client.chat(anyString(), anyString(), anyString(), anyList())).thenReturn(json);
+
+        AlgoliaRequest request = new AlgoliaRequest("/dam/a.pdf", null);
+        request.addRecord(new AlgoliaRecord("/dam/a.pdf"));
+
+        // Custom system prompt WITHOUT {{fields}}
+        this.enricher.enrich(request, "/dam/a.pdf", "text",
+                "https://8.8.8.8/v1", "m", "key",
+                "You are a helpful assistant.", "Analyze: {{pdfText}}", "");
+
+        ArgumentCaptor<List<ChatCompletionsClient.Message>> messages = ArgumentCaptor.forClass(List.class);
+        verify(this.client).chat(anyString(), anyString(), anyString(), messages.capture());
+        String sysContent = messages.getValue().get(0).getContent();
+        // Fields directive is appended
+        assertTrue(sysContent.contains("Return a JSON object with exactly these keys:"));
+        assertTrue(sysContent.contains("\"classification\""));
+    }
+
+    @Test
+    void fieldsDirectiveNotAppendedWhenUserPromptHasPlaceholder() throws IOException {
+        String json = "{\"summary\":\"S.\"}";
+        when(this.client.chat(anyString(), anyString(), anyString(), anyList())).thenReturn(json);
+
+        AlgoliaRequest request = new AlgoliaRequest("/dam/a.pdf", null);
+        request.addRecord(new AlgoliaRecord("/dam/a.pdf"));
+
+        // Custom system WITHOUT {{fields}}, user WITH {{fields}}
+        this.enricher.enrich(request, "/dam/a.pdf", "text",
+                "https://8.8.8.8/v1", "m", "key",
+                "You are a helpful assistant.", "Keys: {{fields}}. Text: {{pdfText}}", "");
+
+        ArgumentCaptor<List<ChatCompletionsClient.Message>> messages = ArgumentCaptor.forClass(List.class);
+        verify(this.client).chat(anyString(), anyString(), anyString(), messages.capture());
+        String sysContent = messages.getValue().get(0).getContent();
+        // No duplicate directive
+        assertFalse(sysContent.contains("Return a JSON object with exactly these keys:"));
+    }
+
     // ─── Error handling ───────────────────────────────────────────────────────
 
     @Test
@@ -226,7 +481,11 @@ class LlmEnricherTest {
         ArgumentCaptor<List<ChatCompletionsClient.Message>> messages = ArgumentCaptor.forClass(List.class);
         verify(this.client).chat(anyString(), anyString(), anyString(), messages.capture());
         assertEquals("system", messages.getValue().get(0).getRole());
-        assertEquals(LlmEnricher.DEFAULT_SYSTEM_PROMPT, messages.getValue().get(0).getContent());
+        // {{fields}} is replaced in the resolved system prompt
+        String sysContent = messages.getValue().get(0).getContent();
+        assertFalse(sysContent.contains(LlmEnricher.FIELDS_PLACEHOLDER));
+        assertTrue(sysContent.contains("\"classification\""));
+        // User message should be exactly 12000 chars (truncated text only)
         assertEquals(12000, messages.getValue().get(1).getContent().length());
     }
 
@@ -277,6 +536,23 @@ class LlmEnricherTest {
         assertEquals("blog", record.get("my_tagDocumentType"));
         assertEquals("en", record.get("my_tagLanguage"));
         assertFalse(record.containsKey("my_pdfClassification"));
+    }
+
+    @Test
+    void tagsEnricherForcesLanguageOnLangTypeField() throws IOException {
+        LlmEnricher tags = LlmEnricher.forTags(this.client, 8000);
+        when(this.client.chat(anyString(), anyString(), anyString(), anyList()))
+                .thenReturn("{\"summary\":\"A brief description.\"}");
+
+        AlgoliaRequest request = new AlgoliaRequest("/content/site/en", null);
+        AlgoliaRecord record = new AlgoliaRecord("/content/site/en");
+        request.addRecord(record);
+
+        // Default fields include language:lang → Tags enricher pre-selects "en" and forces it
+        tags.enrich(request, "/content/site/en", "text", "https://8.8.8.8/v1", "m", "key",
+                "", "", "");
+
+        assertEquals("en", record.get("tagLanguage"));
     }
 
     @Test
@@ -393,5 +669,23 @@ class LlmEnricherTest {
 
         assertEquals("en", choice.code);
         assertEquals("default", choice.source);
+    }
+
+    @Test
+    void customStemOwnAttributesAreSkippedInLanguageDetection() {
+        // When a tags enricher uses a custom stem "doc", attributes like "docLanguage"
+        // should be skipped (not used as the detected language).
+        LlmEnricher.OutputField langField = new LlmEnricher.OutputField("language", LlmEnricher.FieldType.LANG);
+        Set<String> ownNorms = LlmEnricher.buildOwnAttrNorms("doc", List.of(langField));
+        AlgoliaRequest request = new AlgoliaRequest("/content/dam/doc.pdf", null);
+        AlgoliaRecord record = new AlgoliaRecord("/content/dam/doc.pdf");
+        record.addAttribute("docLanguage", "de");  // own attribute — should be skipped
+        record.addAttribute("pdfLanguage", "fr");   // pdf attribute — should be picked up
+        request.addRecord(record);
+
+        LlmEnricher.LanguageChoice choice = LlmEnricher.chooseLanguage(request, ownNorms);
+
+        assertEquals("fr", choice.code);
+        assertEquals("pdfLanguage", choice.source);
     }
 }

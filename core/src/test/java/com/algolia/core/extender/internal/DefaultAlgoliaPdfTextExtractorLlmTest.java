@@ -95,7 +95,7 @@ class DefaultAlgoliaPdfTextExtractorLlmTest {
 
         this.extractor.augmentAlgoliaRequest(this.request, this.asset);
 
-        verify(this.llmEnricher, never()).enrich(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(this.llmEnricher, never()).enrich(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -114,7 +114,7 @@ class DefaultAlgoliaPdfTextExtractorLlmTest {
 
         this.extractor.augmentAlgoliaRequest(this.request, this.asset);
 
-        verify(this.llmEnricher, never()).enrich(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(this.llmEnricher, never()).enrich(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -133,7 +133,7 @@ class DefaultAlgoliaPdfTextExtractorLlmTest {
 
         this.extractor.augmentAlgoliaRequest(this.request, this.asset);
 
-        verify(this.llmEnricher, never()).enrich(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(this.llmEnricher, never()).enrich(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -155,7 +155,7 @@ class DefaultAlgoliaPdfTextExtractorLlmTest {
 
         // Should not throw; just skip enrichment
         assertDoesNotThrow(() -> this.extractor.augmentAlgoliaRequest(this.request, this.asset));
-        verify(this.llmEnricher, never()).enrich(any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(this.llmEnricher, never()).enrich(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -176,11 +176,11 @@ class DefaultAlgoliaPdfTextExtractorLlmTest {
         when(this.asset.getPath()).thenReturn("/content/dam/a.pdf");
         doThrow(new IOException("timeout")).when(this.llmEnricher)
                 .enrich(any(), anyString(), anyString(), anyString(), anyString(),
-                        anyString(), anyString(), anyString(), anyString());
+                        anyString(), anyString(), anyString(), anyString(), any(), any());
 
         assertDoesNotThrow(() -> this.extractor.augmentAlgoliaRequest(this.request, this.asset));
         verify(this.llmEnricher).enrich(any(), anyString(), anyString(), anyString(), anyString(),
-                anyString(), anyString(), anyString(), anyString());
+                anyString(), anyString(), anyString(), anyString(), any(), any());
         assertEquals("some text", this.algoliaRecord.get("pdfText"));
     }
 
@@ -267,7 +267,9 @@ class DefaultAlgoliaPdfTextExtractorLlmTest {
                 eq("sk-real"),
                 anyString(),
                 anyString(),
-                anyString());
+                anyString(),
+                any(),
+                any());
     }
 
     @Test
@@ -300,6 +302,34 @@ class DefaultAlgoliaPdfTextExtractorLlmTest {
                 eq("sk-real"),
                 anyString(),
                 anyString(),
-                anyString());
+                anyString(),
+                any(),
+                any());
+    }
+
+    // -------------------------------------------------------------------------
+    // Config field declarations
+    // -------------------------------------------------------------------------
+
+    @Test
+    void llmOutputFieldsIsDeclaredWithCorrectDefault() {
+        com.algolia.connector.core.extender.ExtenderConfigField field = this.extractor.getConfigFields().stream()
+                .filter(f -> "llmOutputFields".equals(f.getName()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("llmOutputFields not declared"));
+        assertEquals("Output Fields", field.getLabel());
+        assertEquals(LlmEnricher.DEFAULT_OUTPUT_FIELDS, field.getDefaultValue());
+        assertTrue(field.isAuthorOnly());
+    }
+
+    @Test
+    void llmAttributeStemIsDeclaredWithDefaultPdf() {
+        com.algolia.connector.core.extender.ExtenderConfigField field = this.extractor.getConfigFields().stream()
+                .filter(f -> "llmAttributeStem".equals(f.getName()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("llmAttributeStem not declared"));
+        assertEquals("Attribute Stem", field.getLabel());
+        assertEquals("pdf", field.getDefaultValue());
+        assertTrue(field.isAuthorOnly());
     }
 }

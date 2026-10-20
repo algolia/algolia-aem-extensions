@@ -103,9 +103,13 @@ After extracting and indexing tags, the extender can optionally call an OpenAI-c
 
 ### How it works
 
-The extender builds the text sent to the endpoint from the page title and description (for an asset, `dc:title` and `dc:description`), followed by every text or list attribute already on the first record, including the tag titles it just added. `objectID`, `path`, and `type` are left out. When **Content Properties** lists names, only those Algolia attributes or JCR properties are sent (dotted paths such as `meta.jcr_title` are supported). Nothing is sent when that text is empty.
+The extender builds the text sent to the endpoint from the page title and description (for an asset, `dc:title` and `dc:description`), followed by every text or list attribute already on the first record, including the tag titles it just added. `objectID`, `path`, `type`, and any attribute in **Excluded Content Properties** (default `pdfText`, including numbered partitions such as `pdfText1`) are left out. When **Content Properties** lists names, only those Algolia attributes or JCR properties are sent (dotted paths such as `meta.jcr_title` are supported). Nothing is sent when that text is empty.
 
-Because it reads the record as built so far, attributes written by extenders that run after the Tags Extractor are not included. In **Extension Settings**, place the Tags Extractor below any extender whose output should inform the model. The model is called **once per asset or page**, regardless of how many records the indexer created. The extender parses the JSON response and copies the attributes onto **every record** (including split records from the PDF Text Extractor):
+Because it reads the record as built so far, attributes written by extenders that run after the Tags Extractor are not included. In **Extension Settings**, place the Tags Extractor below any extender whose output should inform the model. The model is called **once per asset or page**, regardless of how many records the indexer created. The extender parses the JSON response and copies the attributes onto **every record** (including split records from the PDF Text Extractor).
+
+The set of fields and their types are configured via **Output Fields** (see settings table below). Each field becomes an attribute named `{prefix}{stem}{CapitalisedKey}`, where `{prefix}` is **Attribute Prefix** and `{stem}` is **Attribute Stem** (default `tag`). An attribute is never written over one already on the record.
+
+**Default output schema** (when Output Fields is left blank):
 
 | Attribute | Type | Description |
 |---|---|---|
@@ -113,17 +117,17 @@ Because it reads the record as built so far, attributes written by extenders tha
 | `{prefix}tagSummary` | String | One-paragraph summary |
 | `{prefix}tagTopics` | String array | Main topics (up to 20, de-duplicated) |
 | `{prefix}tagKeywords` | String array | Search keywords (up to 20, de-duplicated) |
-| `{prefix}tagLanguage` | String | ISO 639-1 language code |
+| `{prefix}tagLanguage` | String (ISO 639-1 code) | Language of the content |
 | `{prefix}tagDocumentType` | String | Sub-type of the content |
 
-Classification, summary, topics, keywords, and document type are written in a language the extender picks before calling the model, in this order:
+Text fields are written in a language the extender picks before calling the model, in this order:
 
 1. An authored language attribute on the record, such as `language` or `jcr:language`.
-2. `pdfLanguage`, or another `*Language` attribute an earlier extender wrote. The extender's own `tagLanguage` is ignored.
+2. `pdfLanguage`, or another `*Language` attribute an earlier extender wrote. The extender's own language field (default `tagLanguage`) is ignored.
 3. The language of text earlier extenders put on the record, such as `pdfSummary` or `pdfText`, when common words clearly identify it.
 4. English.
 
-`tagLanguage` is set to that code, for example `en`. In **Extension Settings**, place the [PDF Text Extractor](PDF_TEXT.md) above the Tags Extractor so `pdfLanguage` and the PDF text are available. `{prefix}` is the **Attribute Prefix** from the same Extension Settings row. An attribute is never written over one already on the record.
+The `lang`-typed field (default `tagLanguage`) is forced to that code, for example `en`. In **Extension Settings**, place the [PDF Text Extractor](PDF_TEXT.md) above the Tags Extractor so `pdfLanguage` and the PDF text are available. `{prefix}` is the **Attribute Prefix** from the same Extension Settings row.
 
 Enrichment is **fail-open**: if the HTTP call fails, if the model returns invalid JSON, or if the API key cannot be decrypted, only the tag attributes are indexed and the error is logged at warning level.
 
@@ -135,9 +139,12 @@ All LLM fields are marked **author-only**: AI Setup will not propose, change, or
 |---|---|---|---|
 | Enable LLM Enrichment | checkbox | off | Must be on for any enrichment to happen. Existing installs are unaffected. |
 | LLM Provider | dropdown | — | A provider from the **Algolia › LLM Providers** page. The PDF Text Extractor can use the same one. |
+| Output Fields | text | `classification:text, summary:longtext, topics:list, keywords:list, language:lang, documentType:text` | Comma-separated `key[:type]` entries describing the JSON keys the model must return. Valid types: `text` (string, max 256 chars), `longtext` (string, max 2 000 chars), `list` (string array, max 20, de-duplicated), `lang` (ISO 639-1 code, forced from the pre-selected language). Unknown types default to `text`. At most 20 fields; duplicates and reserved keys (`objectID`, `path`, `type`) are dropped. Leave blank to use the defaults above. |
+| Attribute Stem | text | `tag` | String inserted between the Attribute Prefix and the capitalised field key. Default `tag` produces `tagClassification`, `tagSummary`, etc. Set it to `page` to get `pageClassification`. Clear it to write the key directly (`classification`). Only letters, digits, and underscores are accepted; an invalid value falls back to `tag`. |
 | Content Properties | text | empty (all properties) | By default the model receives every text property on the record, plus the page or asset title and description. Enter a comma-separated list to restrict that, for example `title, product, state, meta.jcr_title`. |
-| System Prompt | textarea | Built-in JSON prompt | Instructs the model to return JSON only, with classification, summary, topics, keywords, and document type. Override to change the tone or add domain context. The language rule described above is appended to every prompt, including a custom one. |
-| User Prompt | textarea | `Analyze the following content:\n\n{{content}}` | Use `{{content}}` as a placeholder for the text described above. If the placeholder is absent, the text is appended. |
+| Excluded Content Properties | text | `pdfText` | Comma-separated attribute names excluded from the default content sent to the model. Numbered partitions of the same base (e.g. `pdfText1`, `pdfText2`) are also excluded automatically. This setting has no effect when **Content Properties** names specific attributes. Leave blank to exclude `pdfText` only (the default). Set to a different value or add more names when your record has other large raw-text attributes that should not be sent. |
+| System Prompt | textarea | Built-in JSON prompt | Instructs the model to return JSON only with the configured fields, written in the language chosen before the call. Use `{{fields}}` anywhere in this prompt or in the User Prompt and it will be replaced with a description of the configured Output Fields. If neither prompt contains `{{fields}}`, a compact field instruction is appended to this prompt automatically so older custom prompts still receive the correct schema. The language directive is appended to every prompt, including custom ones. Override to change the tone or add domain context. |
+| User Prompt | textarea | `Analyze the following content:\n\n{{content}}` | Use `{{content}}` as a placeholder for the text described above. Use `{{fields}}` for the field description. If `{{content}}` is absent, the text is appended. |
 
 This extractor registers an inference probe, so the provider dialog's **Test connection** on the Advanced tab uses the same OSGi host allow-list, timeout, and response-format flag as indexing.
 
@@ -159,13 +166,14 @@ These limits apply to all indexes and are set in the **DefaultAlgoliaTagsExtract
 
 On upgrade from extensions **1.0.x**, a configuration that already selected this class keeps working without a save. Settings JSON is empty, so the extender uses `cq:tags` and no prefix — the same attributes as before.
 
-| 1.0.x behavior | 1.1.0 default | 1.2.0 change |
-|---|---|---|
-| Always read `cq:tags` | **Tag Property** defaults to `cq:tags` | — |
-| No attribute prefix | **Attribute Prefix** defaults to empty | — |
-| Dropdown label **Algolia Default Tags Extractor** | Dropdown label **Algolia Tags Extractor**. The stored class name is unchanged. | — |
-| No LLM enrichment | — | **Enable LLM Enrichment** added and defaults to **off**. Existing records are unchanged. LLM providers are managed on the Cloud Config **Advanced** tab. Requires indexer 5.0.0. |
-| Tags written to the first record only | Tags written to **every record**, including split PDF records | Split records of a PDF asset now carry the tag attributes, so filtering by tag also matches them. |
+| 1.0.x behavior | 1.1.0 default | 1.2.0 change | Current default |
+|---|---|---|---|
+| Always read `cq:tags` | **Tag Property** defaults to `cq:tags` | — | — |
+| No attribute prefix | **Attribute Prefix** defaults to empty | — | — |
+| Dropdown label **Algolia Default Tags Extractor** | Dropdown label **Algolia Tags Extractor**. The stored class name is unchanged. | — | — |
+| No LLM enrichment | — | **Enable LLM Enrichment** added and defaults to **off**. Existing records are unchanged. LLM providers are managed on the Cloud Config **Advanced** tab. Requires indexer 5.0.0. | — |
+| Tags written to the first record only | Tags written to **every record**, including split PDF records | Split records of a PDF asset now carry the tag attributes, so filtering by tag also matches them. | — |
+| Hardcoded output schema (`tagClassification`, `tagSummary`, …) | Hardcoded in 1.2.0 | **Current** adds **Output Fields** (configurable `key:type` spec), **Attribute Stem** (default `tag`), and **Excluded Content Properties** (default `pdfText`). Leaving all three blank reproduces the old hardcoded attributes exactly. |
 
 Upgrading to 1.2.0 requires indexer **5.0.0 or newer**. See [Installation — Backward compatibility](INSTALLATION.md#backward-compatibility) for the full upgrade sequence.
 

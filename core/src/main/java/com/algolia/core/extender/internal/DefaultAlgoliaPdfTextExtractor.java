@@ -169,31 +169,48 @@ public class DefaultAlgoliaPdfTextExtractor implements AlgoliaAssetRequestExtend
                         .type(ExtenderConfigField.Type.BOOLEAN)
                         .defaultValue("false")
                         .authorOnly(true)
-                        .helpText("Send extracted PDF text to an LLM to generate classification, summary, "
-                                + "topics, keywords, language, and document type attributes. "
-                                + "Enrichment is fail-open: if the LLM call fails, only pdfText is indexed.")
+                        .helpText("Send extracted PDF text to an LLM to generate attributes from the "
+                                + "Output Fields list. Enrichment is fail-open: if the LLM call fails, "
+                                + "only pdfText is indexed.")
                         .build(),
                 ExtenderConfigField.builder("llmProviderId", "LLM Provider")
                         .type(ExtenderConfigField.Type.LLM_PROVIDER)
                         .helpText("Select the LLM provider defined on the Advanced tab. "
                                 + "The provider supplies the inference URL, model, and encrypted API key.")
                         .build(),
+                ExtenderConfigField.builder("llmOutputFields", "Output Fields")
+                        .defaultValue(LlmEnricher.DEFAULT_OUTPUT_FIELDS)
+                        .authorOnly(true)
+                        .helpText("Comma-separated JSON keys the model must return, each optionally followed "
+                                + "by a colon and type (text, longtext, list, lang). Leave blank to use the "
+                                + "default: classification:text, summary:longtext, topics:list, "
+                                + "keywords:list, language:lang, documentType:text. "
+                                + "Each key is written as {prefix}{stem}{Key} on the Algolia record.")
+                        .build(),
+                ExtenderConfigField.builder("llmAttributeStem", "Attribute Stem")
+                        .defaultValue("pdf")
+                        .authorOnly(true)
+                        .helpText("Stem inserted between the Attribute Prefix and the capitalised field key. "
+                                + "Default is \"pdf\", producing names such as pdfSummary. "
+                                + "Letters, digits, and underscores only. Blank writes the key directly "
+                                + "after the prefix.")
+                        .build(),
                 ExtenderConfigField.builder("systemPrompt", "System Prompt")
                         .type(ExtenderConfigField.Type.TEXTAREA)
                         .defaultValue(LlmEnricher.DEFAULT_SYSTEM_PROMPT)
                         .authorOnly(true)
-                        .helpText("System message sent before the PDF text. "
-                                + "The model must return a JSON object with classification, summary, "
-                                + "topics (array), keywords (array), language, and documentType. "
-                                + "By default those text fields are written in the language of the document, "
-                                + "and language is an ISO 639-1 code.")
+                        .helpText("System message sent before the PDF text. Use {{fields}} as a placeholder "
+                                + "for the Output Fields description; it is replaced automatically. "
+                                + "The model must return a JSON object whose keys match Output Fields. "
+                                + "By default text fields are written in the dominant language of the document.")
                         .build(),
                 ExtenderConfigField.builder("userPrompt", "User Prompt")
                         .type(ExtenderConfigField.Type.TEXTAREA)
                         .defaultValue(LlmEnricher.PDF_USER_PROMPT)
                         .authorOnly(true)
                         .helpText("User message sent to the model. Use {{pdfText}} as a placeholder for the "
-                                + "extracted text. If the placeholder is absent the text is appended.")
+                                + "extracted text. {{fields}} is also supported. "
+                                + "If {{pdfText}} is absent the text is appended.")
                         .build()
         );
     }

@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -67,13 +68,6 @@ public class DefaultAlgoliaTagsExtractor implements AlgoliaPageRequestExtender, 
     private static final Logger LOGGER = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
     private static final Set<String> IDENTITY_ATTRIBUTES = Set.of(ATTRIBUTE_OBJECT_ID, ATTRIBUTE_PATH, ATTRIBUTE_TYPE);
-
-    /**
-     * Attributes that carry large raw text and are not useful for the Tags LLM classification.
-     * Excluding them prevents sending a full PDF transcript (sometimes tens of thousands of
-     * tokens) when the PDF extractor has run before the Tags extractor.
-     */
-    private static final Set<String> EXCLUDED_FROM_LLM_CONTENT = Set.of("pdfText");
 
     private final TagsParserService tagsParserService;
     private final CryptoSupport cryptoSupport;
@@ -145,41 +139,62 @@ public class DefaultAlgoliaTagsExtractor implements AlgoliaPageRequestExtender, 
                         .type(ExtenderConfigField.Type.BOOLEAN)
                         .defaultValue("false")
                         .authorOnly(true)
-                        .helpText("Send the page or asset title, description, and tags to an LLM to generate "
-                                + "classification, summary, topics, keywords, language, and document type attributes. "
-                                + "Enrichment is fail-open: if the LLM call fails, only tag attributes are indexed.")
+                        .helpText("Send the page or asset content to an LLM to generate attributes from "
+                                + "the Output Fields list. Enrichment is fail-open: if the LLM call fails, "
+                                + "only tag attributes are indexed.")
                         .build(),
                 ExtenderConfigField.builder("llmProviderId", "LLM Provider")
                         .type(ExtenderConfigField.Type.LLM_PROVIDER)
                         .helpText("Select the LLM provider defined on the Advanced tab. "
                                 + "The provider supplies the inference URL, model, and encrypted API key.")
                         .build(),
+                ExtenderConfigField.builder("llmOutputFields", "Output Fields")
+                        .defaultValue(LlmEnricher.DEFAULT_OUTPUT_FIELDS)
+                        .authorOnly(true)
+                        .helpText("Comma-separated JSON keys the model must return, each optionally followed "
+                                + "by a colon and type (text, longtext, list, lang). Leave blank to use the "
+                                + "default: classification:text, summary:longtext, topics:list, "
+                                + "keywords:list, language:lang, documentType:text. "
+                                + "Each key is written as {prefix}{stem}{Key} on the Algolia record.")
+                        .build(),
+                ExtenderConfigField.builder("llmAttributeStem", "Attribute Stem")
+                        .defaultValue("tag")
+                        .authorOnly(true)
+                        .helpText("Stem inserted between the Attribute Prefix and the capitalised field key. "
+                                + "Default is \"tag\", producing names such as tagSummary. "
+                                + "Letters, digits, and underscores only. Blank writes the key directly "
+                                + "after the prefix.")
+                        .build(),
                 ExtenderConfigField.builder("llmContentProperties", "Content Properties")
                         .authorOnly(true)
-                        .helpText("By default the LLM uses all text properties on the record, plus the page "
-                                + "or asset title and description. To limit that, enter a comma-separated "
-                                + "list of Algolia attribute or JCR property names, for example "
-                                + "title, product, state, meta.jcr_title.")
+                        .helpText("By default the LLM receives every text property on the record, plus the "
+                                + "page or asset title and description. Enter a comma-separated list to "
+                                + "restrict that, for example title, product, state, meta.jcr_title.")
+                        .build(),
+                ExtenderConfigField.builder("llmExcludedProperties", "Excluded Content Properties")
+                        .defaultValue("pdfText")
+                        .authorOnly(true)
+                        .helpText("Comma-separated attribute names excluded from the default content sent to "
+                                + "the model. Numbered partitions are excluded automatically (e.g. pdfText1, "
+                                + "pdfText2). If the PDF Attribute Name was changed, add the new name here.")
                         .build(),
                 ExtenderConfigField.builder("systemPrompt", "System Prompt")
                         .type(ExtenderConfigField.Type.TEXTAREA)
                         .defaultValue(LlmEnricher.DEFAULT_SYSTEM_PROMPT)
                         .authorOnly(true)
-                        .helpText("System message sent before the page or asset text. "
-                                + "The model must return a JSON object with classification, summary, "
-                                + "topics (array), keywords (array), language, and documentType. "
-                                + "Those text fields are written in a language already on the record: "
-                                + "a language attribute such as jcr:language or pdfLanguage, or the language of "
-                                + "text an earlier extension wrote. They are written in English when none is "
-                                + "available. That language rule is added to a custom prompt too. "
-                                + "language is an ISO 639-1 code.")
+                        .helpText("System message sent before the page or asset text. Use {{fields}} as a "
+                                + "placeholder for the Output Fields description; it is replaced automatically. "
+                                + "The model must return a JSON object whose keys match Output Fields. "
+                                + "Text fields are written in a language the extender picks from the record "
+                                + "before calling the model; that language rule is always appended.")
                         .build(),
                 ExtenderConfigField.builder("userPrompt", "User Prompt")
                         .type(ExtenderConfigField.Type.TEXTAREA)
                         .defaultValue(LlmEnricher.TAGS_USER_PROMPT)
                         .authorOnly(true)
                         .helpText("User message sent to the model. Use {{content}} as a placeholder for the "
-                                + "page or asset text. If the placeholder is absent the text is appended.")
+                                + "page or asset text. {{fields}} is also supported. "
+                                + "If {{content}} is absent the text is appended.")
                         .build()
         );
     }
@@ -227,9 +242,11 @@ public class DefaultAlgoliaTagsExtractor implements AlgoliaPageRequestExtender, 
         }
         ExtenderSettings settings = settingsOf(request);
         List<String> properties = settings.getList("llmContentProperties");
+        List<String> excludedList = settings.getList("llmExcludedProperties");
+        Set<String> excluded = excludedList.isEmpty() ? Set.of("pdfText") : new HashSet<>(excludedList);
         AlgoliaRecord record = request.getAlgoliaRecords().get(0);
         Resource resource = request.getResource();
-        String content = buildContent(title, description, record, properties, resource);
+        String content = buildContent(title, description, record, properties, resource, excluded);
         if (settings.getBoolean("enableLlmEnrichment", false)) {
             logContentSource(path, properties, content, title, description, record, resource);
         }
@@ -266,26 +283,38 @@ public class DefaultAlgoliaTagsExtractor implements AlgoliaPageRequestExtender, 
 
     /**
      * Builds the text sent to the LLM: the title and description, then every text or list
-     * attribute already on the record (tag titles included). Identity attributes and large raw
-     * text attributes (e.g. {@code pdfText}) are left out to keep the input concise.
+     * attribute already on the record (tag titles included). Identity attributes and attributes
+     * in the default exclusion list ({@code pdfText} and its numbered partitions) are left out
+     * to keep the input concise.
      */
     static String buildContent(String title, String description, AlgoliaRecord record) {
-        return buildContent(title, description, record, List.of(), null);
+        return buildContent(title, description, record, List.of(), null, Set.of("pdfText"));
     }
 
     /**
      * When {@code properties} is empty, uses the default title / description / record-text
      * summary. Otherwise only the named Algolia attributes or JCR properties are included.
+     * Uses the default exclusion set ({@code pdfText}).
      */
     static String buildContent(String title, String description, AlgoliaRecord record,
                                List<String> properties, Resource resource) {
+        return buildContent(title, description, record, properties, resource, Set.of("pdfText"));
+    }
+
+    /**
+     * Full variant with an explicit exclusion set. Excluded names and their numbered partitions
+     * (e.g. {@code pdfText1}, {@code pdfText2}) are omitted from the default content path.
+     * The exclusion set is ignored when {@code properties} is non-empty (named properties only).
+     */
+    static String buildContent(String title, String description, AlgoliaRecord record,
+                               List<String> properties, Resource resource, Set<String> excluded) {
         StringBuilder content = new StringBuilder();
         if (properties == null || properties.isEmpty()) {
             appendLine(content, "Title", title);
             appendLine(content, "Description", description);
             if (record != null) {
                 record.forEach((name, value) -> {
-                    if (!IDENTITY_ATTRIBUTES.contains(name) && !EXCLUDED_FROM_LLM_CONTENT.contains(name)) {
+                    if (!IDENTITY_ATTRIBUTES.contains(name) && !isExcluded(name, excluded)) {
                         appendLine(content, name, textOf(value));
                     }
                 });
@@ -296,6 +325,25 @@ public class DefaultAlgoliaTagsExtractor implements AlgoliaPageRequestExtender, 
             appendLine(content, name, textOf(resolveProperty(name, title, description, record, resource)));
         }
         return content.toString().trim();
+    }
+
+    /**
+     * Returns {@code true} when {@code name} is in the exclusion set or is a numbered partition
+     * of an excluded base name (e.g. {@code pdfText1} for excluded base {@code pdfText}).
+     */
+    private static boolean isExcluded(String name, Set<String> excluded) {
+        if (excluded.contains(name)) {
+            return true;
+        }
+        for (String base : excluded) {
+            if (name.startsWith(base) && name.length() > base.length()) {
+                String suffix = name.substring(base.length());
+                if (!suffix.isEmpty() && suffix.chars().allMatch(Character::isDigit)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     static Object resolveProperty(String name, String title, String description, AlgoliaRecord record,
