@@ -8,6 +8,7 @@ import com.algolia.connector.core.extender.ExtenderSettings;
 import com.algolia.connector.core.inference.ChatCompletionsClient;
 import com.algolia.connector.core.inference.LlmProvider;
 import com.algolia.connector.core.inference.LlmProviderResolver;
+import com.algolia.connector.core.inference.LlmProviderStore;
 import com.algolia.connector.core.util.AlgoliaUtil;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.apache.commons.lang3.StringUtils;
@@ -127,10 +128,11 @@ final class LlmEnricher implements Closeable {
      * Resolves the LLM provider and API key for the request, then calls {@link #enrich}. Fails open: when
      * enrichment is disabled or anything goes wrong, it logs and returns so indexing continues.
      *
+     * @param store   the shared provider registry; checked before the per-configuration JSON
      * @param content supplies the text to analyze; only called once a provider is resolved
      */
     void enrichIfEnabled(AlgoliaRequest request, String path, ExtenderSettings settings, String prefix,
-                         CryptoSupport cryptoSupport, Supplier<String> content) {
+                         CryptoSupport cryptoSupport, LlmProviderStore store, Supplier<String> content) {
         if (!settings.getBoolean("enableLlmEnrichment", false)) {
             LOGGER.debug("LLM enrichment skipped for {}: Enable LLM Enrichment is off.", path);
             return;
@@ -141,7 +143,7 @@ final class LlmEnricher implements Closeable {
                     path);
             return;
         }
-        Optional<LlmProvider> provider = LlmProviderResolver.resolve(config, settings);
+        Optional<LlmProvider> provider = LlmProviderResolver.resolve(store, config, settings);
         if (provider.isEmpty()) {
             LOGGER.info("LLM enrichment skipped for {}: no LLM provider resolved (provider id '{}').",
                     path, settings.getString("llmProviderId", ""));

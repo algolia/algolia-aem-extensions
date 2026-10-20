@@ -12,6 +12,7 @@ import com.algolia.connector.core.extender.ExtenderConfigField;
 import com.algolia.connector.core.extender.ExtenderSettings;
 import com.algolia.connector.core.inference.ChatCompletionsClient;
 import com.algolia.connector.core.inference.InferenceProbe;
+import com.algolia.connector.core.inference.LlmProviderStore;
 import com.algolia.connector.core.util.AlgoliaUtil;
 import com.day.cq.dam.api.Asset;
 import opennlp.tools.tokenize.WhitespaceTokenizer;
@@ -70,6 +71,8 @@ public class DefaultAlgoliaPdfTextExtractor implements AlgoliaAssetRequestExtend
 
     private final CryptoSupport cryptoSupport;
 
+    private final LlmProviderStore llmProviderStore;
+
     private final LlmEnricher llmEnricher;
 
     private final int splitTextThresholdChars;
@@ -78,10 +81,12 @@ public class DefaultAlgoliaPdfTextExtractor implements AlgoliaAssetRequestExtend
     public DefaultAlgoliaPdfTextExtractor(@Reference ResourceResolverFactory resolverFactory,
                                           @Reference PdfTextExtractor extractor,
                                           @Reference CryptoSupport cryptoSupport,
+                                          @Reference LlmProviderStore llmProviderStore,
                                           Config config) {
         this.resolverFactory = resolverFactory;
         this.extractor = extractor;
         this.cryptoSupport = cryptoSupport;
+        this.llmProviderStore = llmProviderStore;
         this.wordSizeLimit = config.word_size_limit();
         this.splitTextThresholdChars = Math.max(MIN_SPLIT_TEXT_THRESHOLD, config.split_text_threshold_chars());
         this.llmEnricher = buildEnricher(config);
@@ -93,11 +98,13 @@ public class DefaultAlgoliaPdfTextExtractor implements AlgoliaAssetRequestExtend
     DefaultAlgoliaPdfTextExtractor(ResourceResolverFactory resolverFactory,
                                    PdfTextExtractor extractor,
                                    CryptoSupport cryptoSupport,
+                                   LlmProviderStore llmProviderStore,
                                    Config config,
                                    LlmEnricher llmEnricher) {
         this.resolverFactory = resolverFactory;
         this.extractor = extractor;
         this.cryptoSupport = cryptoSupport;
+        this.llmProviderStore = llmProviderStore;
         this.wordSizeLimit = config.word_size_limit();
         this.splitTextThresholdChars = Math.max(MIN_SPLIT_TEXT_THRESHOLD, config.split_text_threshold_chars());
         this.llmEnricher = llmEnricher;
@@ -257,7 +264,7 @@ public class DefaultAlgoliaPdfTextExtractor implements AlgoliaAssetRequestExtend
             return;
         }
         this.llmEnricher.enrichIfEnabled(request, asset.getPath(), settings, this.resolvePrefix(settings),
-                this.cryptoSupport, () -> fullText);
+                this.cryptoSupport, this.llmProviderStore, () -> fullText);
     }
 
     private ExtenderSettings settingsOf(AlgoliaRequest request) {

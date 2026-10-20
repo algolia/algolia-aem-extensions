@@ -60,7 +60,7 @@ public class DefaultAlgoliaTagsExtractorTest {
     @BeforeEach
     void setup() {
         this.algoliaTagsExtractor = new DefaultAlgoliaTagsExtractor(
-                this.tagsParserService, mock(CryptoSupport.class), (LlmEnricher) null);
+                this.tagsParserService, mock(CryptoSupport.class), null, (LlmEnricher) null);
         this.records = new ArrayList<>();
         this.algoliaAssetRecord = new AlgoliaRecord("/content/dam/a/b.pdf");
         this.algoliaPageRecord = new AlgoliaRecord("/content/dam/x/y");

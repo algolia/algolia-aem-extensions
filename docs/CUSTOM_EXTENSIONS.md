@@ -114,7 +114,7 @@ Deployment-wide defaults can still use an OSGi `@ObjectClassDefinition`, the sam
 
 ### Calling an LLM
 
-LLM endpoints are defined once per Cloud Service configuration, under **Advanced → LLM Providers**. Each provider holds an inference URL, a model, and an encrypted API key. An extender that calls an LLM declares one field of type `LLM_PROVIDER`, named `llmProviderId`, and the author picks a provider from it:
+LLM endpoints are defined once for the AEM instance, on the **Algolia › LLM Providers** page, and every Cloud Service configuration can use them. Each provider holds an inference URL, a model, and an encrypted API key. An extender that calls an LLM declares one field of type `LLM_PROVIDER`, named `llmProviderId`, and the author picks a provider from it:
 
 ```java
 ExtenderConfigField.builder("llmProviderId", "LLM Provider")
@@ -122,7 +122,7 @@ ExtenderConfigField.builder("llmProviderId", "LLM Provider")
         .build()
 ```
 
-At indexing time, call `LlmProviderResolver.resolve(request.getConfig(), settings)`. It returns the selected provider. For configurations saved before providers existed, it falls back to the legacy inline `inferenceUrl`, `model`, and `inferenceApiKey` settings. The API key on the provider is still encrypted; decrypt it with `AlgoliaUtil.unprotectText`. Treat every LLM failure as non-fatal, so the resource still indexes without the enrichment attributes.
+At indexing time, call `LlmProviderResolver.resolve(store, request.getConfig(), settings)`, where `store` is an OSGi `@Reference LlmProviderStore` injected into your extender. It returns the selected provider from the shared store, then falls back to the providers a configuration saved before the shared store existed, then to the legacy inline `inferenceUrl`, `model`, and `inferenceApiKey` settings. The API key on the provider is still encrypted; decrypt it with `AlgoliaUtil.unprotectText`. Treat every LLM failure as non-fatal, so the resource still indexes without the enrichment attributes.
 
 To make **Test connection** in the provider dialog work for your extender, implement `com.algolia.connector.core.inference.InferenceProbe` on the extender class itself and register it as an OSGi service next to the extender interface, as `DefaultAlgoliaPdfTextExtractor` does. `testConnection` should use the same host allow-list, timeout, and response-format flag as indexing. Indexer core **5.0.0** or newer is required.
 

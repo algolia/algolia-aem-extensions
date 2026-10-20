@@ -134,7 +134,7 @@ All LLM fields are marked **author-only**: AI Setup will not propose, change, or
 | Setting | Type | Default | Description |
 |---|---|---|---|
 | Enable LLM Enrichment | checkbox | off | Must be on for any enrichment to happen. Existing installs are unaffected. |
-| LLM Provider | dropdown | — | A provider from **Advanced → LLM Providers** on the Cloud Configuration. The PDF Text Extractor can use the same one. |
+| LLM Provider | dropdown | — | A provider from the **Algolia › LLM Providers** page. The PDF Text Extractor can use the same one. |
 | Content Properties | text | empty (all properties) | By default the model receives every text property on the record, plus the page or asset title and description. Enter a comma-separated list to restrict that, for example `title, product, state, meta.jcr_title`. |
 | System Prompt | textarea | Built-in JSON prompt | Instructs the model to return JSON only, with classification, summary, topics, keywords, and document type. Override to change the tone or add domain context. The language rule described above is appended to every prompt, including a custom one. |
 | User Prompt | textarea | `Analyze the following content:\n\n{{content}}` | Use `{{content}}` as a placeholder for the text described above. If the placeholder is absent, the text is appended. |

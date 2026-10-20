@@ -132,7 +132,7 @@ All LLM fields are marked **author-only**: AI Setup will not propose, change, or
 | Setting | Type | Default | Description |
 |---|---|---|---|
 | Enable LLM Enrichment | checkbox | off | Must be on for any enrichment to happen. Existing installs are unaffected. |
-| LLM Provider | dropdown | — | A provider from **Advanced → LLM Providers** on the Cloud Configuration. The provider holds the Inference URL, Model, and encrypted API key, so the Tags Extractor can use the same one. |
+| LLM Provider | dropdown | — | A provider from the **Algolia › LLM Providers** page. The provider holds the Inference URL, Model, and encrypted API key, so the Tags Extractor can use the same one. |
 | System Prompt | textarea | Built-in JSON prompt, shown as the placeholder | Instructs the model to return JSON only, with classification, summary, topics, keywords, and document type written in the language of the document. Override to change the tone or add domain context. A custom prompt replaces this instruction, so keep the language rule if you still want enrichment in the source language. |
 | User Prompt | textarea | `Analyze the following document text:\n\n{{pdfText}}` | Use `{{pdfText}}` as a placeholder for the truncated text. If the placeholder is absent, the text is appended. |
 

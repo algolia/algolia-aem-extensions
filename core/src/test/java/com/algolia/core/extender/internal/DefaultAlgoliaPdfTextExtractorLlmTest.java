@@ -68,11 +68,11 @@ class DefaultAlgoliaPdfTextExtractorLlmTest {
         this.records.add(this.algoliaRecord);
         this.extractor = new DefaultAlgoliaPdfTextExtractor(
                 mock(ResourceResolverFactory.class), this.pdfTextExtractor,
-                this.cryptoSupport, this.config, this.llmEnricher);
+                this.cryptoSupport, null, this.config, this.llmEnricher);
         // Default: config has no providers (triggers legacy fallback)
         lenient().when(this.algoliaConfig.llmProviders()).thenReturn("");
         lenient().doCallRealMethod().when(this.llmEnricher)
-                .enrichIfEnabled(any(), any(), any(), any(), any(), any());
+                .enrichIfEnabled(any(), any(), any(), any(), any(), any(), any());
     }
 
     // -------------------------------------------------------------------------
@@ -195,7 +195,7 @@ class DefaultAlgoliaPdfTextExtractorLlmTest {
                 .thenReturn("{\"classification\":\"guide\",\"summary\":\"S.\",\"topics\":[\"t\"],"
                         + "\"keywords\":[\"k\"],\"language\":\"en\",\"documentType\":\"report\"}");
         DefaultAlgoliaPdfTextExtractor withClient = new DefaultAlgoliaPdfTextExtractor(
-                mock(ResourceResolverFactory.class), this.pdfTextExtractor, this.cryptoSupport, this.config,
+                mock(ResourceResolverFactory.class), this.pdfTextExtractor, this.cryptoSupport, null, this.config,
                 LlmEnricher.forPdf(client, 12000));
         // Use inline credentials via legacy fallback (empty config → no providers)
         AlgoliaConfiguration realConfig = mock(AlgoliaConfiguration.class);

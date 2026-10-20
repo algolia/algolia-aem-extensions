@@ -75,7 +75,7 @@ public class DefaultAlgoliaPdfTextExtractorTest {
         when(this.config.split_text_threshold_chars()).thenReturn(DefaultAlgoliaPdfTextExtractor.RECORD_SIZE_LIMIT);
         // Pass null enricher so existing tests exercise only the text-extraction path
         this.algoliaPdfTextExtractor = new DefaultAlgoliaPdfTextExtractor(
-                this.resolverFactory, this.pdfTextExtractor, this.cryptoSupport, this.config, null);
+                this.resolverFactory, this.pdfTextExtractor, this.cryptoSupport, null, this.config, null);
         this.records = new ArrayList<>();
         this.algoliaRecord = spy(new AlgoliaRecord("/content/dam/a/b.pdf"));
         this.records.add(this.algoliaRecord);
@@ -198,7 +198,7 @@ public class DefaultAlgoliaPdfTextExtractorTest {
     void splitHelpTextShowsTheConfiguredThreshold() {
         when(this.config.split_text_threshold_chars()).thenReturn(4096);
         DefaultAlgoliaPdfTextExtractor extractor = new DefaultAlgoliaPdfTextExtractor(
-                this.resolverFactory, this.pdfTextExtractor, this.cryptoSupport, this.config, null);
+                this.resolverFactory, this.pdfTextExtractor, this.cryptoSupport, null, this.config, null);
 
         String helpText = extractor.getConfigFields().stream()
                 .filter(field -> "splitOversizedRecords".equals(field.getName()))
@@ -209,7 +209,7 @@ public class DefaultAlgoliaPdfTextExtractorTest {
     private AlgoliaRequest extractWithThreshold(int threshold) {
         when(this.config.split_text_threshold_chars()).thenReturn(threshold);
         DefaultAlgoliaPdfTextExtractor extractor = new DefaultAlgoliaPdfTextExtractor(
-                this.resolverFactory, this.pdfTextExtractor, this.cryptoSupport, this.config, null);
+                this.resolverFactory, this.pdfTextExtractor, this.cryptoSupport, null, this.config, null);
         AlgoliaRequest request = new AlgoliaRequest("/content/dam/a/b.pdf", null);
         request.addRecord(new AlgoliaRecord("/content/dam/a/b.pdf"));
         request.setExtenderSettings(new ExtenderSettings(Map.of("wordSizeLimit", "1"), List.of()));

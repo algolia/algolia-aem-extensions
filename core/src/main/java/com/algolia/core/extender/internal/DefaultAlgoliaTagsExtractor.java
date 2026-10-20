@@ -12,6 +12,7 @@ import com.algolia.connector.core.extender.ExtenderConfigField;
 import com.algolia.connector.core.extender.ExtenderSettings;
 import com.algolia.connector.core.inference.ChatCompletionsClient;
 import com.algolia.connector.core.inference.InferenceProbe;
+import com.algolia.connector.core.inference.LlmProviderStore;
 import com.day.cq.dam.api.Asset;
 import com.day.cq.wcm.api.Page;
 import org.apache.commons.lang3.StringUtils;
@@ -76,22 +77,25 @@ public class DefaultAlgoliaTagsExtractor implements AlgoliaPageRequestExtender, 
 
     private final TagsParserService tagsParserService;
     private final CryptoSupport cryptoSupport;
+    private final LlmProviderStore llmProviderStore;
     private final LlmEnricher llmEnricher;
 
     @Activate
     public DefaultAlgoliaTagsExtractor(@Reference TagsParserService tagsParserService,
                                        @Reference CryptoSupport cryptoSupport,
+                                       @Reference LlmProviderStore llmProviderStore,
                                        Config config) {
-        this(tagsParserService, cryptoSupport, buildEnricher(config));
+        this(tagsParserService, cryptoSupport, llmProviderStore, buildEnricher(config));
     }
 
     /**
      * Package-private constructor for unit tests that inject a pre-built enricher.
      */
     DefaultAlgoliaTagsExtractor(TagsParserService tagsParserService, CryptoSupport cryptoSupport,
-                                LlmEnricher llmEnricher) {
+                                LlmProviderStore llmProviderStore, LlmEnricher llmEnricher) {
         this.tagsParserService = tagsParserService;
         this.cryptoSupport = cryptoSupport;
+        this.llmProviderStore = llmProviderStore;
         this.llmEnricher = llmEnricher;
     }
 
@@ -230,7 +234,7 @@ public class DefaultAlgoliaTagsExtractor implements AlgoliaPageRequestExtender, 
             logContentSource(path, properties, content, title, description, record, resource);
         }
         this.llmEnricher.enrichIfEnabled(request, path, settings, prefixOf(settings), this.cryptoSupport,
-                () -> content);
+                this.llmProviderStore, () -> content);
     }
 
     private static void logContentSource(String path, List<String> properties, String content, String title,

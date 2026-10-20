@@ -65,10 +65,10 @@ class DefaultAlgoliaTagsExtractorLlmTest {
         this.records = new ArrayList<>();
         this.records.add(this.algoliaRecord);
         this.extractor = new DefaultAlgoliaTagsExtractor(
-                this.tagsParserService, this.cryptoSupport, this.llmEnricher);
+                this.tagsParserService, this.cryptoSupport, null, this.llmEnricher);
         lenient().when(this.algoliaConfig.llmProviders()).thenReturn("");
         lenient().doCallRealMethod().when(this.llmEnricher)
-                .enrichIfEnabled(any(), any(), any(), any(), any(), any());
+                .enrichIfEnabled(any(), any(), any(), any(), any(), any(), any());
         lenient().when(this.request.getAlgoliaRecords()).thenReturn(this.records);
         lenient().when(this.asset.getPath()).thenReturn("/content/dam/a.pdf");
         lenient().when(this.asset.getMetadataValue("dc:title")).thenReturn("Asset title");
@@ -288,7 +288,7 @@ class DefaultAlgoliaTagsExtractorLlmTest {
                         + "\"topics\":[\"tech\"],\"keywords\":[\"aem\"],"
                         + "\"language\":\"en\",\"documentType\":\"blog\"}");
         DefaultAlgoliaTagsExtractor realExtractor = new DefaultAlgoliaTagsExtractor(
-                this.tagsParserService, this.cryptoSupport, LlmEnricher.forTags(client, 8000));
+                this.tagsParserService, this.cryptoSupport, null, LlmEnricher.forTags(client, 8000));
 
         AlgoliaConfiguration realConfig = mock(AlgoliaConfiguration.class);
         lenient().when(realConfig.llmProviders()).thenReturn("");
@@ -322,7 +322,7 @@ class DefaultAlgoliaTagsExtractorLlmTest {
                         + "\"topics\":[\"Industrial Coatings\"],\"keywords\":[\"urethane\"],"
                         + "\"language\":\"en\",\"documentType\":\"Product Data Sheet\"}");
         DefaultAlgoliaTagsExtractor realExtractor = new DefaultAlgoliaTagsExtractor(
-                this.tagsParserService, this.cryptoSupport, LlmEnricher.forTags(client, 8000));
+                this.tagsParserService, this.cryptoSupport, null, LlmEnricher.forTags(client, 8000));
 
         AlgoliaConfiguration realConfig = mock(AlgoliaConfiguration.class);
         lenient().when(realConfig.llmProviders()).thenReturn("");
