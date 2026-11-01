@@ -5,6 +5,12 @@
 -includeresource: fontbox-*.jar;pdfbox-*.jar;lib:=true
 
 Import-Package: org.apache.commons.logging;version='[1.2,2)', \
+                com.algolia.connector.core;version='[4.9,6)', \
+                com.algolia.connector.core.config;version='[4.9,6)', \
+                com.algolia.connector.core.domain;version='[4.9,6)', \
+                com.algolia.connector.core.extender;version='[4.9,6)', \
+                com.algolia.connector.core.util;version='[4.9,6)', \
+                com.algolia.connector.core.inference;version='[5.0,6)', \
                 !sun.misc.*, \
                 *
 

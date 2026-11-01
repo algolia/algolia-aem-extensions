@@ -1,6 +1,6 @@
 # Algolia AEM Extensions
 
-This project provides reference implementations of extensions for the Algolia AEM Connector. The project includes two indexing extensions that demonstrate how to customize and enhance the indexing behavior of the connector.
+This project provides reference implementations of extensions for the Algolia AEM Connector. The project includes two indexing extenders and one resource introspector that demonstrate how to customize and enhance the indexing behavior of the connector.
 
 ## Disclaimer
 
@@ -8,16 +8,17 @@ This project provides reference implementations of extensions for the Algolia AE
 
 ## Overview
 
-This project demonstrates how to build custom extensions for the Algolia AEM Connector. Extensions allow you to customize and enhance the indexing behavior of the connector to meet your specific requirements.
+This project demonstrates how to build custom extensions for the Algolia AEM Connector. Extensions allow you to customize and enhance the indexing behavior of the connector to meet your specific requirements. From version **1.1.0**, authors configure each selected service on the indexer Cloud Service configuration **Advanced** tab; leaving the new settings blank keeps the behavior of earlier releases. From version **1.2.0**, the PDF Text Extractor and Tags Extractor can optionally enrich records with LLM-generated attributes, using an LLM provider defined on the same tab. See [Backward compatibility](docs/INSTALLATION.md#backward-compatibility).
 
 ## Indexing Extensions
 
-The project provides two reference implementations:
+The project provides three reference implementations:
 
 1. **DefaultAlgoliaPdfTextExtractor** — asset request extender that extracts PDF text onto Algolia records, partitions it by word count, and splits records when the text exceeds 10 KB. See [PDF Text Extractor](docs/PDF_TEXT.md).
-2. **DefaultAlgoliaTagsExtractor** — page and asset extender that adds `cq:tags` through the indexer’s `TagsParserService`. See [Tags Extractor](docs/TAGS.md).
+2. **DefaultAlgoliaTagsExtractor** — page and asset extender that adds tag titles from a JCR tag property through the indexer’s `TagsParserService`. See [Tags Extractor](docs/TAGS.md).
+3. **DefaultAlgoliaPropertyValueIntrospector** — resource introspector that aborts indexing when a JCR property equals a configured string, integer, or boolean. See [Property Value Introspector](docs/INTROSPECTOR.md).
 
-Use them as starting points for your own extenders. See [Building custom extensions](docs/CUSTOM_EXTENSIONS.md).
+Use them as starting points for your own extenders and introspectors. See [Building custom extensions](docs/CUSTOM_EXTENSIONS.md).
 
 ## Modules
 
@@ -33,10 +34,11 @@ Guides for this package live in [`docs/`](docs/):
 
 | Guide | Topics |
 |-------|--------|
-| [Installation](docs/INSTALLATION.md) | Prerequisites, Maven build, deploy profiles, selecting extenders, tests |
+| [Installation](docs/INSTALLATION.md) | Prerequisites, Maven build, deploy profiles, selecting services, backward compatibility, tests |
 | [PDF Text Extractor](docs/PDF_TEXT.md) | `pdfText` attributes, word-size limit, 10 KB record splitting |
-| [Tags Extractor](docs/TAGS.md) | `cq:tags` on pages and assets |
-| [Custom extensions](docs/CUSTOM_EXTENSIONS.md) | Extender interfaces, OSGi registration, Cloud Service selection |
+| [Tags Extractor](docs/TAGS.md) | Tag property and attribute prefix on pages and assets |
+| [Property Value Introspector](docs/INTROSPECTOR.md) | Abort indexing when a JCR property equals a configured value |
+| [Custom extensions](docs/CUSTOM_EXTENSIONS.md) | Extender and introspector interfaces, OSGi registration, Cloud Service settings |
 
 Build a branded PDF (requires [pandoc](https://pandoc.org/), Node.js, and Google Chrome):
 
@@ -46,7 +48,7 @@ mvn -N exec:exec@docs-pdf
 
 `npm run docs:pdf` runs the same script.
 
-The file is written to `docs/pdf/Algolia-AEM-Extensions-Documentation-v1.0.0.pdf`.
+The file is written to `docs/pdf/Algolia-AEM-Extensions-Documentation-v1.2.0.pdf`.
 
 ## How to build
 
@@ -77,7 +79,7 @@ Or to deploy only a single content package, run in the sub-module directory (i.e
 ## Dependencies
 
 This project depends on:
-- `algolia-aem-indexer.core` (version 4.1.2) - The core Algolia AEM Connector library
+- `algolia-aem-indexer.core` (version 5.0.0 or newer) - The core Algolia AEM Connector library. Required for Extension Settings, Introspector Settings, and LLM enrichment.
 - `opennlp-tools` (version 2.5.0) - Used for text tokenization in PDF text extraction
 - AEM SDK API - For AEM-specific functionality
 

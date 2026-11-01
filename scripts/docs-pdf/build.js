@@ -69,13 +69,19 @@ const CHAPTERS = [
         id: 'tags',
         file: 'TAGS.md',
         title: 'Tags Extractor',
-        blurb: 'Adding cq:tags from pages and assets onto Algolia records with the default tags extractor.'
+        blurb: 'Adding tag titles from pages and assets onto Algolia records, with a configurable tag property and attribute prefix.'
+    },
+    {
+        id: 'introspector',
+        file: 'INTROSPECTOR.md',
+        title: 'Property Value Introspector',
+        blurb: 'Aborting indexing when a JCR property equals a configured string, integer, or boolean.'
     },
     {
         id: 'custom',
         file: 'CUSTOM_EXTENSIONS.md',
         title: 'Building Custom Extensions',
-        blurb: 'Implementing page and asset request extenders, registering them as OSGi services, and selecting them on a Cloud Service configuration.'
+        blurb: 'Implementing page and asset request extenders and introspectors, registering them as OSGi services, and selecting them on a Cloud Service configuration.'
     }
 ]
 
@@ -188,7 +194,7 @@ function buildCover({ version, published, whiteLogo }) {
   <div class="cover-body">
     <div class="cover-eyebrow">Adobe Experience Manager</div>
     <h1 class="cover-title">Algolia AEM Extensions</h1>
-    <p class="cover-subtitle">Reference indexing extensions for PDF text and tags, and a guide to building page and asset request extenders for the Algolia Connector for AEM.</p>
+    <p class="cover-subtitle">Reference indexing extensions for PDF text, tags, and property-value abort rules, and a guide to building page and asset request extenders for the Algolia Connector for AEM.</p>
   </div>
   <div class="cover-meta">
     <div><span>Version</span><strong>${escapeHtml(version)}</strong></div>
