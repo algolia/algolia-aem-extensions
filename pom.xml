@@ -5,7 +5,7 @@
     <groupId>com.algolia</groupId>
     <artifactId>algolia-aem-extensions</artifactId>
     <packaging>pom</packaging>
-    <version>1.0.0</version>
+    <version>1.2.0</version>
     <name>Algolia AEM Extensions</name>
     <description>Algolia AEM Extensions</description>
     <modules>
@@ -91,6 +91,27 @@
                     <source>21</source>
                     <target>21</target>
                 </configuration>
+            </plugin>
+            <!-- Documentation PDF: mvn -N exec:exec@docs-pdf -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <inherited>false</inherited>
+                <executions>
+                    <execution>
+                        <id>docs-pdf</id>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>node</executable>
+                            <arguments>
+                                <argument>scripts/docs-pdf/build.js</argument>
+                            </arguments>
+                            <workingDirectory>${project.basedir}</workingDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
         <pluginManagement>
@@ -300,6 +321,11 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-enforcer-plugin</artifactId>
                     <version>3.6.3</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>exec-maven-plugin</artifactId>
+                    <version>3.5.1</version>
                 </plugin>
                 <!-- Maven Dependency Plugin -->
                 <plugin>
