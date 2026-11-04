@@ -1,0 +1,372 @@
+/* Algolia brand palette. Nebula Blue is the fill of the Algolia logo itself. */
+:root {
+  --nebula: #003dff;
+  --algolia: #5468ff;
+  --cosmos: #21243d;
+  --ink: #23263b;
+  --muted: #5a5e9a;
+  --moon: #f5f5fa;
+  --line: #d6d6e7;
+  --tint: #eef1ff;
+  --code-bg: #21243d;
+  --sans: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+}
+
+/* The zero-margin first page is what keeps the running footer off the cover:
+   Chrome draws the footer inside the page margin, so there is nowhere to draw it. */
+/* The footer text is added by build.js, which knows the version. */
+@page {
+  size: Letter;
+  margin: 0.8in 0.75in 0.85in;
+
+  @bottom-left {
+    font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 7.5pt;
+    color: #5a5e9a;
+    vertical-align: middle;
+    padding-left: 15px;
+    background-repeat: no-repeat;
+    background-position: left center;
+    background-size: 9px 9px;
+  }
+
+  @bottom-right {
+    content: counter(page) " / " counter(pages);
+    font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-size: 7.5pt;
+    color: #5a5e9a;
+    vertical-align: middle;
+  }
+}
+
+@page :first {
+  margin: 0;
+  @bottom-left { content: none; }
+  @bottom-right { content: none; }
+}
+
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+body {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 9.5pt;
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+/* ── Cover ─────────────────────────────────────────────────────────────── */
+
+.cover {
+  position: relative;
+  width: 8.5in;
+  height: 10.99in;
+  box-sizing: border-box;
+  padding: 0.95in 0.9in 0.8in;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: #fff;
+  background:
+    radial-gradient(circle at 88% 12%, rgba(84, 104, 255, 0.75) 0, rgba(84, 104, 255, 0) 42%),
+    radial-gradient(circle at 8% 96%, rgba(0, 61, 255, 0.55) 0, rgba(0, 61, 255, 0) 45%),
+    linear-gradient(150deg, #003dff 0%, #1b2ad1 42%, #21243d 100%);
+  break-after: page;
+}
+
+.cover::after {
+  content: '';
+  position: absolute;
+  right: -1.7in;
+  top: 2.3in;
+  width: 5.2in;
+  height: 5.2in;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 0 0 0.45in rgba(255, 255, 255, 0.035),
+    0 0 0 0.9in rgba(255, 255, 255, 0.025);
+}
+
+.cover-logo svg { height: 0.5in; width: auto; display: block; }
+
+.cover-body { position: relative; z-index: 1; margin-top: auto; margin-bottom: 1in; }
+
+.cover-eyebrow {
+  font-size: 9.5pt;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+  margin-bottom: 14pt;
+}
+
+.cover-title {
+  font-size: 40pt;
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0 0 16pt;
+}
+
+.cover-subtitle {
+  font-size: 14pt;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.86);
+  max-width: 5.4in;
+  margin: 0;
+}
+
+.cover-meta {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 0.5in;
+  border-top: 1px solid rgba(255, 255, 255, 0.28);
+  padding-top: 16pt;
+}
+
+.cover-meta span {
+  display: block;
+  font-size: 7pt;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 3pt;
+}
+
+.cover-meta strong { font-size: 10pt; font-weight: 600; color: #fff; }
+.cover-meta > div:nth-child(-n + 2) { flex: none; white-space: nowrap; }
+
+/* ── Contents ──────────────────────────────────────────────────────────── */
+
+.contents { break-after: page; }
+
+.contents-title {
+  font-size: 26pt;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  color: var(--cosmos);
+  margin: 0 0 20pt;
+}
+
+.toc-part { break-inside: avoid; margin-bottom: 18pt; }
+
+.toc-part-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10pt;
+  border-bottom: 1.5px solid var(--cosmos);
+  padding-bottom: 4pt;
+}
+
+.toc-part-num {
+  font-size: 8pt;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--nebula);
+}
+
+.toc-part-title { font-size: 13pt; font-weight: 700; color: var(--cosmos); }
+
+.toc-part-blurb { font-size: 8.5pt; color: var(--muted); margin: 4pt 0 6pt; }
+
+.toc-list { columns: 2; column-gap: 0.35in; list-style: none; padding: 0; margin: 0; }
+
+.toc-list li {
+  break-inside: avoid;
+  font-size: 8.5pt;
+  padding: 2.5pt 0;
+  margin: 0;
+  border-bottom: 1px dotted var(--line);
+}
+
+.toc-list a { color: var(--ink); }
+
+/* ── Chapters ──────────────────────────────────────────────────────────── */
+
+.chapter { break-before: page; }
+
+.chapter-banner { margin: 0 0 22pt; padding-bottom: 16pt; border-bottom: 1px solid var(--line); }
+
+.chapter-banner::before {
+  content: '';
+  display: block;
+  width: 0.55in;
+  height: 4pt;
+  border-radius: 2pt;
+  background: linear-gradient(90deg, var(--nebula), var(--algolia));
+  margin-bottom: 14pt;
+}
+
+.chapter-num {
+  font-size: 8pt;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--nebula);
+}
+
+.chapter-title {
+  font-size: 26pt;
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  color: var(--cosmos);
+  margin: 4pt 0 6pt;
+}
+
+.chapter-blurb { font-size: 10.5pt; color: var(--muted); margin: 0; }
+
+/* ── Body text ─────────────────────────────────────────────────────────── */
+
+h2, h3, h4, h5, h6 { color: var(--cosmos); line-height: 1.3; break-after: avoid; }
+
+h2 { font-size: 15pt; font-weight: 700; letter-spacing: -0.01em; margin: 26pt 0 8pt; }
+
+h2::before {
+  content: '';
+  display: inline-block;
+  width: 4pt;
+  height: 12pt;
+  border-radius: 2pt;
+  background: var(--nebula);
+  margin-right: 8pt;
+  vertical-align: -1pt;
+}
+
+h3 { font-size: 12pt; font-weight: 700; margin: 20pt 0 6pt; }
+
+h4 { font-size: 10pt; font-weight: 700; color: var(--nebula); margin: 16pt 0 4pt; }
+
+h5, h6 { font-size: 9.5pt; font-weight: 700; margin: 12pt 0 4pt; }
+
+p { margin: 0 0 8pt; orphans: 3; widows: 3; }
+
+ul, ol { margin: 0 0 8pt; padding-left: 18pt; }
+
+li { margin: 2pt 0; }
+
+li > p { margin-bottom: 4pt; }
+
+a { color: var(--nebula); text-decoration: none; }
+
+strong { font-weight: 600; color: var(--cosmos); }
+
+hr { border: 0; border-top: 1px solid var(--line); margin: 18pt 0; }
+
+/* ── Code ──────────────────────────────────────────────────────────────── */
+
+code { font-family: var(--mono); font-size: 0.86em; }
+
+:not(pre) > code {
+  background: var(--moon);
+  border: 1px solid #e4e4f0;
+  border-radius: 3pt;
+  padding: 0.05em 0.32em;
+  color: #3a3f76;
+  overflow-wrap: anywhere;
+}
+
+pre {
+  background: var(--code-bg);
+  color: #e6e8ff;
+  border-radius: 6pt;
+  padding: 10pt 12pt;
+  margin: 0 0 10pt;
+  font-size: 7.8pt;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+pre code { font-size: inherit; color: inherit; }
+
+div.sourceCode { margin: 0 0 10pt; }
+
+div.sourceCode pre { margin: 0; }
+
+/* Pandoc syntax-highlighting token classes, tuned for the dark code background. */
+code span.kw, code span.cf { color: #9fb0ff; }
+code span.st, code span.vs, code span.ss, code span.ch { color: #7ee2b8; }
+code span.dv, code span.bn, code span.fl, code span.cn { color: #ffb86c; }
+code span.co, code span.do, code span.cv, code span.an, code span.in { color: #8b8fb8; font-style: italic; }
+code span.fu { color: #82c7ff; }
+code span.at { color: #ffd479; }
+code span.op { color: #c9ccf5; }
+code span.bu, code span.im { color: #c792ea; }
+code span.al, code span.er, code span.wa { color: #ff6b81; }
+
+/* ── Tables ────────────────────────────────────────────────────────────── */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 4pt 0 12pt;
+  font-size: 8.4pt;
+  line-height: 1.45;
+}
+
+thead { display: table-header-group; }
+
+tr { break-inside: avoid; }
+
+th {
+  text-align: left;
+  vertical-align: bottom;
+  background: var(--moon);
+  color: var(--cosmos);
+  font-weight: 600;
+  border-bottom: 2px solid var(--nebula);
+  padding: 5pt 7pt;
+}
+
+td { vertical-align: top; border-bottom: 1px solid var(--line); padding: 5pt 7pt; }
+
+tbody tr:nth-child(even) td { background: #fbfbfe; }
+
+td code, th code { word-break: break-word; }
+
+/* ── Callouts, figures, diagrams ───────────────────────────────────────── */
+
+blockquote {
+  margin: 0 0 10pt;
+  padding: 8pt 12pt;
+  background: var(--tint);
+  border-left: 3pt solid var(--algolia);
+  border-radius: 0 5pt 5pt 0;
+  break-inside: avoid;
+}
+
+blockquote p:last-child { margin-bottom: 0; }
+
+figure { margin: 10pt 0 14pt; text-align: center; break-inside: avoid; }
+
+figure img {
+  max-width: 100%;
+  max-height: 6.6in;
+  border: 1px solid var(--line);
+  border-radius: 6pt;
+  box-shadow: 0 1pt 6pt rgba(33, 36, 61, 0.12);
+}
+
+figcaption { margin-top: 5pt; font-size: 7.8pt; color: var(--muted); }
+
+img { max-width: 100%; }
+
+.mermaid { margin: 8pt 0 14pt; text-align: center; break-inside: avoid; }
+
+.mermaid svg { max-width: 100%; max-height: 8.4in; height: auto; }
+
+/* Shown only when the Mermaid script could not load or a diagram failed to parse. */
+.mermaid:not([data-processed='true']) {
+  white-space: pre-wrap;
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 7.6pt;
+  background: var(--moon);
+  border-radius: 6pt;
+  padding: 10pt;
+}
