@@ -218,138 +218,34 @@ window.AlgoliaConfigs = {
                 }
             },
             autocomplete: {
-                reshape({
-                    sourcesBySourceId,
-                    sources,
-                    state,
-                    panelContainerClassName,
-                }) {
-                    const {
-                        recentSearchesPlugin: recentSearches,
-                        querySuggestionsPlugin: querySuggestions,
-                        ...rest
-                    } = sourcesBySourceId;
-
-                    const autocompleteSourceHookPrefix = "plugin_";
-                    const plugins = {};
-
-                    // Loop through the original object
-                    for (const key in sourcesBySourceId) {
-                        if (key.startsWith(autocompleteSourceHookPrefix)) {
-                            // If the key starts with the specified prefix, add it to the filtered object
-                            plugins[key] = sourcesBySourceId[key];
-                        }
-                    }
-
-                    const pluginsSourceIdsToExclude = [];
-                    if (plugins) {
-                        for (const objKey in plugins) {
-                            if (plugins.hasOwnProperty(objKey)) {
-                                pluginsSourceIdsToExclude.push(objKey);
-                            }
-                        }
-                    }
-
-                    const sourceIdsToExclude = [
-                        "recentSearchesPlugin",
-                        "querySuggestionsPlugin",
-                        ...pluginsSourceIdsToExclude,
-                    ];
-
-                    const filteredSourcesData = sources.filter(
-                        (source) => !sourceIdsToExclude.includes(source.sourceId),
-                    );
-
-                    let sourcesData;
-                    if (sources) {
-                        const sourceIDS = filteredSourcesData.map((element) => {
-                            return element.sourceId;
-                        });
-
-                        sourcesData = sourceIDS.map((sourceId) => {
-                            return sourcesBySourceId[sourceId];
-                        });
-                    }
-
-                    const hasResults =
-                        filteredSourcesData.reduce(
-                            (prev, curr) => prev + curr.getItems().length,
-                            0,
-                        ) > 0;
-
-                    if (state.query === "") {
-                        return [
-                            plugins.plugin_links,
-                            plugins.plugin_recommendations,
-                            sourcesData[2],
-                            sourcesData[0],
-                            sourcesData[1],
-                            querySuggestions,
-                        ];
-                    } else if (state.query && hasResults) {
-                        return [
-                            plugins.plugin_recommendations,
-                            plugins.plugin_links,
-                            sourcesData[0],
-                            querySuggestions,
-                            sourcesData[2],
-                            sourcesData[1],
-                        ];
-                    } else if (state.query && !hasResults) {
-                        return [
-                            querySuggestions,
-                            sourcesData[0]
-                        ];
-                    }
-                },
-                classNames: {
+                cssClasses: {
                     panel: 'aa-Panel-InstantSearch'
                 }
             },
-			insights: {
-                onItemsChange({
-                    insights,
-                    insightsEvents
-                }) {
-                    const events = insightsEvents.map((insightsEvent) => ({
-                        ...insightsEvent,
-                        eventName: "Product Viewed from Autocomplete",
-                    }));
-                    insights.viewedObjectIDs(...events);
-                },
-                onSelect({
-                    insights,
-                    insightsEvents
-                }) {
-                    const events = insightsEvents.map((insightsEvent) => ({
-                        ...insightsEvent,
-                        eventName: "Product Selected from Autocomplete",
-                    }));
-                    insights.clickedObjectIDsAfterSearch(...events);
+            instantSearch: {
+                insights: {
+                    onEvent(event, aa) {
+                        const eventNames = {
+                            view: "Product Viewed from Autocomplete",
+                            click: "Product Selected from Autocomplete",
+                        };
+                        const eventName = event.widgetType === "ais.autocomplete" && eventNames[event.eventType];
+                        aa(event.insightsMethod, eventName ? { ...event.payload, eventName } : event.payload);
+                    },
                 },
             },
         },
         globalSearch: {
-            insights: {
-                onItemsChange({
-                    insights,
-                    insightsEvents
-                }) {
-                    const events = insightsEvents.map((insightsEvent) => ({
-                        ...insightsEvent,
-                        eventName: "Product Viewed from Autocomplete",
-                    }));
-                    insights.viewedObjectIDs(...events);
-                },
-                onSelect({
-                    insights,
-                    insightsEvents
-                }) {
-                    const events = insightsEvents.map((insightsEvent) => ({
-                        ...insightsEvent,
-                        eventName: "Product Selected from Autocomplete",
-                    }));
-                    insights.clickedObjectIDsAfterSearch(...events);
+            instantSearch: {
+                insights: {
+                    onEvent(event, aa) {
+                        const eventNames = {
+                            view: "Product Viewed from Autocomplete",
+                            click: "Product Selected from Autocomplete",
+                        };
+                        const eventName = event.widgetType === "ais.autocomplete" && eventNames[event.eventType];
+                        aa(event.insightsMethod, eventName ? { ...event.payload, eventName } : event.payload);
+                    },
                 },
             },
         },
